@@ -1,0 +1,71 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: realtime-debate-db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: debatedb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: realtime-debate-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    container_name: realtime-debate-backend
+    ports:
+      - "3001:3001" # API
+      - "8080:8080" # WebSocket
+    depends_on:
+      - postgres
+    environment:
+      - DATABASE_URL=postgresql://user:password@postgres:5432/debatedb
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - STYLE_BART_API_URL=${STYLE_BART_API_URL}
+    networks:
+      - app-network
+    volumes:
+      - ./apps/backend:/usr/src/app
+      - /usr/src/app/node_modules
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    container_name: realtime-debate-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8080
+    networks:
+      - app-network
+    volumes:
+      - ./apps/frontend:/usr/src/app
+      - /usr/src/app/node_modules
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

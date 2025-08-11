@@ -1,0 +1,84 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id        String      @id @default(cuid())
+  theme     String
+  maxTurns  Int
+  status    String      @default("CONFIGURING") // e.g., CONFIGURING, IN_PROGRESS, FINISHED
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  participants Participant[]
+  turns        Turn[]
+  verdict      Verdict?
+}
+
+model Participant {
+  id          String    @id @default(cuid())
+  name        String // "Right" or "Left"
+  sessionId   String
+  session     Session   @relation(fields: [sessionId], references: [id])
+
+  @@unique([sessionId, name])
+}
+
+model Turn {
+  id          String      @id @default(cuid())
+  turnNumber  Int
+  status      String      // e.g., SPEAKING, WRAPUP, JUDGING
+  speaker     String      // "Right", "Left", or "Moderator"
+  startTime   DateTime    @default(now())
+  endTime     DateTime?
+
+  sessionId   String
+  session     Session     @relation(fields: [sessionId], references: [id])
+
+  utterances  Utterance[]
+  scores      Score[]
+
+  @@unique([sessionId, turnNumber])
+}
+
+model Utterance {
+  id        String    @id @default(cuid())
+  text      String
+  isFinal   Boolean   @default(false) // true for final transcript, false for partial
+  timestamp DateTime  @default(now())
+
+  turnId    String
+  turn      Turn      @relation(fields: [turnId], references: [id])
+}
+
+model Score {
+  id                String  @id @default(cuid())
+  logic             Float
+  evidence          Float
+  rebuttal          Float
+  consistency       Float
+  clarity           Float
+  factuality        Float
+
+  turnId            String  @unique
+  turn              Turn    @relation(fields: [turnId], references: [id])
+}
+
+model Verdict {
+  id                String    @id @default(cuid())
+  winner            String // "Right", "Left", or "Draw"
+  summary           String
+  feedbackRight     String
+  feedbackLeft      String
+
+  sessionId         String    @unique
+  session           Session   @relation(fields: [sessionId], references: [id])
+}
