@@ -90,7 +90,7 @@ export class DebateSessionService {
       this.wsConnection.updateSessionState(sessionId, SessionState.READY);
 
       // 開始アナウンスを作成
-      const startMessage = `ディベートを開始します。テーマは「${session.theme}」です。3ターン、各30秒で進行します。`;
+      const startMessage = `ディベートを開始します。テーマは「${session.theme}」です。3ターン、各30秒で進行します。右が賛成、左が反対の立場で行います。先行は右側です。`;
 
       // AIアナウンスを保存
       await this.aiResponseRepository.create({
@@ -112,7 +112,7 @@ export class DebateSessionService {
       // 音声再生完了後に第1ターンを開始
       setTimeout(() => {
         this.startTurn(sessionId, 1, Side.RIGHT);
-      }, 1000); // 1秒の余裕を持って開始
+      }, 2000); // 1秒の余裕を持って開始
 
       this.logger.log(`Session ${sessionId} started`);
     } catch (error) {
@@ -162,7 +162,7 @@ export class DebateSessionService {
 
       const sideText = side === Side.RIGHT ? "右" : "左";
       const turnText = turnIndex === 3 ? "最終弁論" : `第${turnIndex}ターン`;
-      const message = `${turnText}、${sideText}の者、どうぞ。30秒でお話しください。`;
+      const message = `${turnText}、${sideText}の者、どうぞ。30秒でお話してください。`;
 
       // AIアナウンスを保存
       await this.aiResponseRepository.create({

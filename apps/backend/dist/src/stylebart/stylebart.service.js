@@ -39,8 +39,8 @@ let StylebartService = StylebartService_1 = class StylebartService {
             this.logger.log(`G2P conversion successful: ${moraToneList.length} morae`);
             this.logger.log("Requesting speech synthesis...");
             const synthesisRequest = {
-                model: "jvnv-F1-jp",
-                modelFile: "model_assets/jvnv-F1-jp/jvnv-F1-jp_e160_s14000.safetensors",
+                model: "Anneli",
+                modelFile: "model_assets/Anneli/Anneli_e116_s32000.safetensors",
                 text: text,
                 moraToneList: moraToneList,
                 style: "Neutral",
@@ -49,7 +49,7 @@ let StylebartService = StylebartService_1 = class StylebartService {
                 noise: 0.6,
                 noisew: 0.8,
                 language: "JP",
-                speaker: "jvnv-F1-jp",
+                speaker: "Anneli",
             };
             const response = await axios_1.default.post(`${this.apiUrl}/api/synthesis`, synthesisRequest, {
                 headers: {

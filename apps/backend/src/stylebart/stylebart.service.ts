@@ -45,8 +45,8 @@ export class StylebartService {
       // Step 2: 音声合成リクエスト
       this.logger.log("Requesting speech synthesis...");
       const synthesisRequest = {
-        model: "jvnv-F1-jp", // 日本語女性音声モデル
-        modelFile: "model_assets/jvnv-F1-jp/jvnv-F1-jp_e160_s14000.safetensors",
+        model: "Anneli", // 日本語女性音声モデル
+        modelFile: "model_assets/Anneli/Anneli_e116_s32000.safetensors",
         text: text,
         moraToneList: moraToneList,
         style: "Neutral",
@@ -55,7 +55,7 @@ export class StylebartService {
         noise: 0.6,
         noisew: 0.8,
         language: "JP",
-        speaker: "jvnv-F1-jp",
+        speaker: "Anneli",
       };
 
       const response = await axios.post<ArrayBuffer>(
