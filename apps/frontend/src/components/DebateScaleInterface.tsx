@@ -123,7 +123,7 @@ export default function DebateScaleInterface() {
       {/* ヘッダー */}
       <header className="p-6 text-center">
         <h1 className="text-4xl font-bold text-white mb-2">
-          AI審判官ディベートシステム
+          {/* AI審判官ディベートシステム */}
         </h1>
         <div className="flex items-center justify-center gap-2">
           <div
