@@ -46,7 +46,7 @@ export const useDebateWebSocket = () => {
     if (socketRef.current) return;
 
     console.log(`Connecting to WebSocket at: ${WS_URL}`);
-    
+
     const socket = io(WS_URL, {
       reconnection: true,
       reconnectionAttempts: 5,
@@ -72,13 +72,27 @@ export const useDebateWebSocket = () => {
     // セッション作成成功
     socket.on(S2C_EVENTS.SESSION_CREATED, (data: SessionCreatedPayload) => {
       console.log("Session created:", data);
-      setSession({
-        sessionId: data.sessionId,
-        theme: data.config.theme,
-        state: "IDLE",
-        currentTurn: 0,
-        participantCount: 1,
-        role: "moderator",
+      setSession((prev) => {
+        // 既にsession:joinedで設定済みの場合は、テーマだけ更新
+        if (prev && prev.sessionId === data.sessionId) {
+          console.log("Session already exists, updating theme:", prev);
+          return {
+            ...prev,
+            theme: data.config.theme,
+          };
+        }
+
+        // 新しいセッションを作成
+        const newSession = {
+          sessionId: data.sessionId,
+          theme: data.config.theme,
+          state: "IDLE" as const,
+          currentTurn: 0,
+          participantCount: 1,
+          role: "moderator" as const,
+        };
+        console.log("Setting session to:", newSession);
+        return newSession;
       });
       addMessage(`セッションが作成されました: ${data.config.theme}`, "system");
       setIsLoading(false);
@@ -87,12 +101,38 @@ export const useDebateWebSocket = () => {
     // セッション参加成功
     socket.on("session:joined", (data: any) => {
       console.log("Session joined:", data);
-      setSession((prev) => ({
-        ...prev!,
-        role: data.role,
-        side: data.side,
-        participantCount: data.participantCount,
-      }));
+      setSession((prev) => {
+        // sessionIdが含まれている場合は、新しいセッション情報として扱う
+        if (data.sessionId) {
+          const newSession = {
+            sessionId: data.sessionId,
+            theme: prev?.theme || "テーマ未設定",
+            state: prev?.state || "IDLE",
+            currentTurn: prev?.currentTurn || 0,
+            role: data.role,
+            side: data.side,
+            participantCount: data.participantCount,
+          };
+          console.log("Creating session from join event:", newSession);
+          return newSession;
+        }
+
+        // sessionIdがない場合は既存のセッションを更新
+        if (!prev) {
+          console.warn(
+            "session:joined received but no previous session state and no sessionId"
+          );
+          return null;
+        }
+        const updatedSession = {
+          ...prev,
+          role: data.role,
+          side: data.side,
+          participantCount: data.participantCount,
+        };
+        console.log("Updated session after join:", updatedSession);
+        return updatedSession;
+      });
       const sideText = data.side === "RIGHT" ? "右サイド" : "左サイド";
       addMessage(`セッションに${sideText}として参加しました`, "system");
       setIsLoading(false);
@@ -232,11 +272,13 @@ export const useDebateWebSocket = () => {
   }, []);
 
   const startSession = useCallback(() => {
+    console.log("startSession called, session:", session);
     if (!socketRef.current?.connected || !session) {
       setError("セッションが見つかりません");
       return;
     }
 
+    console.log("Emitting session:start with sessionId:", session.sessionId);
     socketRef.current.emit("session:start", { sessionId: session.sessionId });
     addMessage("セッションを開始します...", "system");
   }, [session, addMessage]);
