@@ -1,22 +1,22 @@
 "use client";
 
 import { Suspense } from "react";
-import DebateClient from "../components/DebateClient";
+import DebateScaleInterface from "../components/DebateScaleInterface";
 
-function DebateClientWrapper() {
+function DebateScaleWrapper() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          Loading...
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-900 to-purple-900">
+          <div className="text-white text-xl">Loading...</div>
         </div>
       }
     >
-      <DebateClient />
+      <DebateScaleInterface />
     </Suspense>
   );
 }
 
 export default function Home() {
-  return <DebateClientWrapper />;
+  return <DebateScaleWrapper />;
 }
