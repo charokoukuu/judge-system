@@ -224,15 +224,90 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // TODO: 最終的な音声認識結果を処理
       const finalText = "これは仮のテキストです"; // 実際はWhisper APIの結果
 
-      // 現在のターンとサイドを取得（実装は簡略化）
-      const currentTurn = 1; // TODO: セッション状態から取得
+      // 現在のターンとサイドを取得
+      const sessionRoom = this.wsConnection.getSessionRoom(
+        clientData.sessionId
+      );
+      const currentTurn = this.getCurrentTurnFromState(sessionRoom?.state);
+
+      if (currentTurn > 0) {
+        // 発話を保存
+        await this.debateSession.processUtterance(
+          clientData.sessionId,
+          currentTurn,
+          clientData.participantSide,
+          finalText
+        );
+
+        // 最終認識結果をブロードキャスト
+        this.wsConnection.broadcastToSession(
+          clientData.sessionId,
+          S2C_EVENTS.TRANSCRIPT_FINAL,
+          {
+            text: finalText,
+            clientId: client.id,
+            side: clientData.participantSide,
+            turnIndex: currentTurn,
+          }
+        );
+      }
+    } catch (error) {
+      this.logger.error(`Failed to process audio stop: ${error.message}`);
+      client.emit(S2C_EVENTS.ERROR, {
+        message: `音声処理に失敗しました: ${error.message}`,
+      });
+    }
+  }
+
+  @SubscribeMessage("text:send")
+  async handleTextSend(
+    @MessageBody() payload: { text: string },
+    @ConnectedSocket() client: Socket
+  ): Promise<void> {
+    try {
+      this.logger.log(
+        `Text received from client ${client.id}: ${payload.text}`
+      );
+
+      const clientData = this.wsConnection.getClient(client.id);
+      if (!clientData?.sessionId || !clientData.participantSide) {
+        client.emit(S2C_EVENTS.ERROR, {
+          message: "セッションに参加していません",
+        });
+        return;
+      }
+
+      // 現在のターンとサイドを取得
+      const sessionRoom = this.wsConnection.getSessionRoom(
+        clientData.sessionId
+      );
+      const currentTurn = this.getCurrentTurnFromState(sessionRoom?.state);
+
+      if (currentTurn <= 0) {
+        client.emit(S2C_EVENTS.ERROR, {
+          message: "まだディベートが開始されていません",
+        });
+        return;
+      }
+
+      // 現在のターンで発話可能かチェック
+      const canSpeak = this.canClientSpeak(
+        sessionRoom?.state,
+        clientData.participantSide
+      );
+      if (!canSpeak) {
+        client.emit(S2C_EVENTS.ERROR, {
+          message: "現在はあなたの発話ターンではありません",
+        });
+        return;
+      }
 
       // 発話を保存
       await this.debateSession.processUtterance(
         clientData.sessionId,
         currentTurn,
         clientData.participantSide,
-        finalText
+        payload.text
       );
 
       // 最終認識結果をブロードキャスト
@@ -240,18 +315,41 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
         clientData.sessionId,
         S2C_EVENTS.TRANSCRIPT_FINAL,
         {
-          text: finalText,
+          text: payload.text,
           clientId: client.id,
           side: clientData.participantSide,
           turnIndex: currentTurn,
         }
       );
+
+      this.logger.log(
+        `Text processed for session ${clientData.sessionId}, turn ${currentTurn}, side ${clientData.participantSide}`
+      );
     } catch (error) {
-      this.logger.error(`Failed to process audio stop: ${error.message}`);
+      this.logger.error(`Failed to process text: ${error.message}`);
       client.emit(S2C_EVENTS.ERROR, {
-        message: `音声処理に失敗しました: ${error.message}`,
+        message: `テキスト処理に失敗しました: ${error.message}`,
       });
     }
+  }
+
+  private getCurrentTurnFromState(state?: any): number {
+    if (!state) return 0;
+
+    const stateStr = state.toString();
+    if (stateStr.includes("TURN1")) return 1;
+    if (stateStr.includes("TURN2")) return 2;
+    if (stateStr.includes("FINAL")) return 3;
+    return 0;
+  }
+
+  private canClientSpeak(state?: any, side?: Side): boolean {
+    if (!state || !side) return false;
+
+    const stateStr = state.toString();
+    if (side === Side.RIGHT && stateStr.includes("RIGHT")) return true;
+    if (side === Side.LEFT && stateStr.includes("LEFT")) return true;
+    return false;
   }
 
   @SubscribeMessage("session:stats")

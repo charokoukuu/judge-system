@@ -508,9 +508,65 @@ export class DebateSessionService {
     turnIndex: number,
     utterances: any[]
   ): Promise<number> {
-    // TODO: OpenAI APIを使用して実際の評価を実装
-    // 仮の実装として、ランダムな値を返す
-    return Math.random() * 2 - 1; // -1 to 1
+    try {
+      const session = await this.sessionRepository.findById(sessionId);
+      if (!session) {
+        throw new Error(`Session ${sessionId} not found`);
+      }
+
+      // 右と左の発話を分類
+      const rightUtterances = utterances.filter((u) => u.side === Side.RIGHT);
+      const leftUtterances = utterances.filter((u) => u.side === Side.LEFT);
+
+      const rightText = rightUtterances.map((u) => u.text).join(" ");
+      const leftText = leftUtterances.map((u) => u.text).join(" ");
+
+      const prompt = `
+ディベートのターン評価を行ってください。
+テーマ: ${session.theme}
+ターン: ${turnIndex}
+
+右側の発言:
+${rightText}
+
+左側の発言:
+${leftText}
+
+以下の観点で評価し、右側を基準として-1.0から1.0のスコアを返してください:
+- 論理性: 論理的一貫性と根拠の明確さ
+- 説得力: 聞き手を納得させる力
+- 反論への対応: 相手の主張への適切な対応
+
+スコア（数値のみ）:
+- 1.0: 右側が圧倒的に優勢
+- 0.5: 右側がやや優勢
+- 0.0: 引き分け
+- -0.5: 左側がやや優勢
+- -1.0: 左側が圧倒的に優勢
+
+数値のみで回答してください（例: 0.3）
+`;
+
+      const response = await this.openaiService.chatCompletion([
+        {
+          role: "system",
+          content: "あなたは公平で経験豊富なディベート審判です。",
+        },
+        { role: "user", content: prompt },
+      ]);
+
+      const score = parseFloat(response.trim());
+      if (isNaN(score) || score < -1 || score > 1) {
+        this.logger.warn(`Invalid evaluation score: ${response}, using 0`);
+        return 0;
+      }
+
+      this.logger.log(`Turn ${turnIndex} evaluation score: ${score}`);
+      return score;
+    } catch (error) {
+      this.logger.error(`Failed to evaluate turn: ${error.message}`);
+      return 0; // デフォルトスコア
+    }
   }
 
   /**
@@ -519,16 +575,126 @@ export class DebateSessionService {
   private async performFinalJudgment(
     sessionId: string
   ): Promise<{ sessionId: string; winner: Winner; rationale: string }> {
-    // TODO: OpenAI APIを使用して実際の判定を実装
-    // 仮の実装として、ランダムな勝者を返す
-    const winner = Math.random() > 0.5 ? Winner.RIGHT : Winner.LEFT;
-    const rationale = "論理性と根拠の明確さを総合的に判断した結果です。";
+    try {
+      const session = await this.sessionRepository.findById(sessionId);
+      if (!session) {
+        throw new Error(`Session ${sessionId} not found`);
+      }
 
-    return {
-      sessionId,
-      winner,
-      rationale,
-    };
+      // 全ターンの発話を取得
+      const allUtterances = [];
+      for (let turn = 1; turn <= 3; turn++) {
+        const utterances = await this.utteranceRepository.findBySessionAndTurn(
+          sessionId,
+          turn
+        );
+        allUtterances.push(...utterances);
+      }
+
+      // 右と左の発話を分類・整理
+      const rightUtterances = allUtterances.filter(
+        (u) => u.side === Side.RIGHT
+      );
+      const leftUtterances = allUtterances.filter((u) => u.side === Side.LEFT);
+
+      const rightSummary = rightUtterances
+        .sort((a, b) => a.turnIndex - b.turnIndex)
+        .map((u) => `ターン${u.turnIndex}: ${u.text}`)
+        .join("\n");
+
+      const leftSummary = leftUtterances
+        .sort((a, b) => a.turnIndex - b.turnIndex)
+        .map((u) => `ターン${u.turnIndex}: ${u.text}`)
+        .join("\n");
+
+      // ターン評価結果も取得
+      const turnResults = [];
+      for (let turn = 1; turn <= 3; turn++) {
+        const result = await this.turnResultRepository.findBySessionAndTurn(
+          sessionId,
+          turn
+        );
+        if (result) {
+          turnResults.push(
+            `ターン${turn}: ${result.rate > 0 ? "右" : "左"}優勢 (スコア: ${result.rate})`
+          );
+        }
+      }
+
+      const prompt = `
+ディベートの最終判定を行ってください。
+
+テーマ: ${session.theme}
+
+右側の発言:
+${rightSummary}
+
+左側の発言:
+${leftSummary}
+
+各ターンの評価結果:
+${turnResults.join("\n")}
+
+以下の観点で総合的に判断してください:
+1. 論理性と一貫性
+2. 根拠の明確さと説得力
+3. 相手の主張への反駁の的確さ
+4. 全体的な議論の構成力
+
+勝者を「RIGHT」または「LEFT」で答え、その後に理由を100文字程度で説明してください。
+
+回答形式:
+勝者: RIGHT または LEFT
+理由: [判定理由]
+`;
+
+      const response = await this.openaiService.chatCompletion([
+        {
+          role: "system",
+          content:
+            "あなたは公正で経験豊富なディベート審判です。論理性と説得力を重視して判定してください。",
+        },
+        { role: "user", content: prompt },
+      ]);
+
+      // レスポンスをパース
+      const lines = response.split("\n");
+      let winner: Winner = Winner.RIGHT;
+      let rationale = "論理性と根拠の明確さを総合的に判断した結果です。";
+
+      for (const line of lines) {
+        if (line.includes("勝者:") || line.includes("Winner:")) {
+          if (line.includes("LEFT")) {
+            winner = Winner.LEFT;
+          } else if (line.includes("RIGHT")) {
+            winner = Winner.RIGHT;
+          }
+        } else if (line.includes("理由:") || line.includes("Reason:")) {
+          const reasonMatch =
+            line.match(/理由:\s*(.+)/) || line.match(/Reason:\s*(.+)/);
+          if (reasonMatch) {
+            rationale = reasonMatch[1].trim();
+          }
+        }
+      }
+
+      this.logger.log(`Final judgment: ${winner}, rationale: ${rationale}`);
+
+      return {
+        sessionId,
+        winner,
+        rationale,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to perform final judgment: ${error.message}`);
+      // デフォルトの判定を返す
+      const winner = Math.random() > 0.5 ? Winner.RIGHT : Winner.LEFT;
+      return {
+        sessionId,
+        winner,
+        rationale: "システムエラーのため、ランダムに判定されました。",
+      };
+    }
   }
 
   /**
@@ -539,14 +705,33 @@ export class DebateSessionService {
     text: string
   ): Promise<void> {
     try {
-      // TODO: Style-BART APIを使用して音声を生成
-      // 現在は仮実装
+      this.logger.log(`Generating audio for text: "${text}"`);
+
+      // Style-BART APIを使用して音声を生成
+      const audioBuffer = await this.stylebartService.textToSpeech(text);
+
+      // 音声データをBase64エンコード
+      const audioBase64 = audioBuffer.toString("base64");
+
       this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
         text,
-        audioUrl: null, // 実際の音声URLまたはバイナリデータ
+        audioData: audioBase64,
+        audioType: "audio/wav", // Style-BARTが返すフォーマットに応じて調整
       });
+
+      this.logger.log(
+        `Audio generated and broadcasted for session ${sessionId}`
+      );
     } catch (error) {
       this.logger.error(`Failed to generate audio: ${error.message}`);
+
+      // エラーの場合はテキストのみ送信
+      this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
+        text,
+        audioData: null,
+        audioType: null,
+        error: "Audio generation failed",
+      });
     }
   }
 }

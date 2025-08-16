@@ -1,8 +1,8 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { DebateGateway } from "./debate/debate.gateway";
-import { OpenaiService } from "./openai/openai.service";
-import { StylebartService } from "./stylebart/stylebart.service";
+import { OpenaiModule } from "./openai/openai.module";
+import { StylebartModule } from "./stylebart/stylebart.module";
 import { RepositoriesModule } from "./repositories/repositories.module";
 import { WebSocketModule } from "./websocket/websocket.module";
 
@@ -13,9 +13,11 @@ import { WebSocketModule } from "./websocket/websocket.module";
       envFilePath: ".env",
     }),
     RepositoriesModule,
+    OpenaiModule,
+    StylebartModule,
     WebSocketModule,
   ],
   controllers: [], // No REST controllers for now
-  providers: [DebateGateway, OpenaiService, StylebartService],
+  providers: [DebateGateway],
 })
 export class AppModule {}
