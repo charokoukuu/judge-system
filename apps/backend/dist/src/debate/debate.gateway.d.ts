@@ -1,6 +1,6 @@
 import { OnGatewayConnection, OnGatewayDisconnect } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
-import { SessionCreatePayload, SessionJoinPayload, AudioChunkPayload, AudioStartPayload, AudioStopPayload } from "@repo/types";
+import { SessionCreatePayload, SessionJoinPayload, AudioStartPayload, AudioStopPayload } from "@repo/types";
 import { WebSocketConnectionService } from "../websocket/websocket-connection.service";
 import { DebateSessionService } from "../websocket/debate-session.service";
 export declare class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -8,6 +8,7 @@ export declare class DebateGateway implements OnGatewayConnection, OnGatewayDisc
     private readonly debateSession;
     server: Server;
     private readonly logger;
+    private audioBuffers;
     constructor(wsConnection: WebSocketConnectionService, debateSession: DebateSessionService);
     afterInit(server: Server): void;
     handleConnection(client: Socket): void;
@@ -18,7 +19,7 @@ export declare class DebateGateway implements OnGatewayConnection, OnGatewayDisc
         sessionId: string;
     }, client: Socket): Promise<void>;
     handleAudioStart(payload: AudioStartPayload, client: Socket): void;
-    handleAudioChunk(payload: AudioChunkPayload, client: Socket): Promise<void>;
+    handleAudioChunk(payload: any, client: Socket): Promise<void>;
     handleAudioStop(payload: AudioStopPayload, client: Socket): Promise<void>;
     handleTextSend(payload: {
         text: string;

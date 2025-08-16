@@ -41,7 +41,7 @@ export const useDebateWebSocket = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  
+
   // カウントダウン状態
   const [countdownEvent, setCountdownEvent] = useState<{
     duration: number;
@@ -295,7 +295,7 @@ export const useDebateWebSocket = () => {
     socket.on("turn:countdown_started", (data: any) => {
       console.log("Countdown started:", data);
       addMessage(`カウントダウン開始 - ${data.duration}秒`, "system");
-      
+
       // カウントダウンイベントを設定
       setCountdownEvent({
         duration: data.duration,
@@ -437,6 +437,38 @@ export const useDebateWebSocket = () => {
     [session]
   );
 
+  const sendAudioStart = useCallback((sessionId: string) => {
+    if (!socketRef.current?.connected) {
+      setError("WebSocketに接続されていません");
+      return;
+    }
+
+    socketRef.current.emit("audio:start", { sessionId });
+  }, []);
+
+  const sendAudioChunk = useCallback((chunk: ArrayBuffer) => {
+    if (!socketRef.current?.connected) {
+      return;
+    }
+
+    // ArrayBufferをBase64エンコード
+    const uint8Array = new Uint8Array(chunk);
+    const binaryString = Array.from(uint8Array)
+      .map((byte) => String.fromCharCode(byte))
+      .join("");
+    const base64 = btoa(binaryString);
+
+    socketRef.current.emit("audio:chunk", { chunk: base64 });
+  }, []);
+
+  const sendAudioStop = useCallback(() => {
+    if (!socketRef.current?.connected) {
+      return;
+    }
+
+    socketRef.current.emit("audio:stop", {});
+  }, []);
+
   const disconnect = useCallback(() => {
     socketRef.current?.disconnect();
     setSession(null);
@@ -455,6 +487,9 @@ export const useDebateWebSocket = () => {
     joinSession,
     startSession,
     sendText,
+    sendAudioStart,
+    sendAudioChunk,
+    sendAudioStop,
     disconnect,
     clearError: () => setError(null),
   };

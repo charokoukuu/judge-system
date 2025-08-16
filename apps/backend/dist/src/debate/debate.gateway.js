@@ -26,6 +26,7 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
         this.wsConnection = wsConnection;
         this.debateSession = debateSession;
         this.logger = new common_1.Logger(DebateGateway_1.name);
+        this.audioBuffers = new Map();
     }
     afterInit(server) {
         this.wsConnection.setServer(server);
@@ -123,14 +124,31 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
     }
     handleAudioStart(payload, client) {
         this.logger.log(`Audio start for session ${payload.sessionId} from client ${client.id}`);
+        this.audioBuffers.set(client.id, []);
         this.wsConnection.broadcastToSession(payload.sessionId, "audio:start", {
             clientId: client.id,
             sessionId: payload.sessionId,
         });
     }
     async handleAudioChunk(payload, client) {
-        const clientData = this.wsConnection.getClient(client.id);
-        if (clientData?.sessionId) {
+        try {
+            let audioBuffer;
+            if (typeof payload.chunk === "string") {
+                audioBuffer = Buffer.from(payload.chunk, "base64");
+            }
+            else if (payload.chunk instanceof ArrayBuffer) {
+                audioBuffer = Buffer.from(payload.chunk);
+            }
+            else {
+                this.logger.warn(`Unexpected audio chunk format from ${client.id}`);
+                return;
+            }
+            const clientBuffers = this.audioBuffers.get(client.id) || [];
+            clientBuffers.push(audioBuffer);
+            this.audioBuffers.set(client.id, clientBuffers);
+        }
+        catch (error) {
+            this.logger.error(`Failed to process audio chunk: ${error.message}`);
         }
     }
     async handleAudioStop(payload, client) {
@@ -138,12 +156,41 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
             this.logger.log(`Audio stop from client ${client.id}`);
             const clientData = this.wsConnection.getClient(client.id);
             if (!clientData?.sessionId || !clientData.participantSide) {
+                this.logger.warn(`Client ${client.id} not properly connected to session`);
                 return;
             }
-            const finalText = "これは仮のテキストです";
+            const clientBuffers = this.audioBuffers.get(client.id) || [];
+            this.audioBuffers.delete(client.id);
+            if (clientBuffers.length === 0) {
+                this.logger.warn(`No audio data received from client ${client.id}`);
+                return;
+            }
+            const combinedAudioBuffer = Buffer.concat(clientBuffers);
+            this.logger.log(`Processing ${combinedAudioBuffer.length} bytes of audio data from client ${client.id}`);
+            let finalText;
+            try {
+                finalText =
+                    await this.debateSession.transcribeAudio(combinedAudioBuffer);
+                this.logger.log(`STT result for client ${client.id}: "${finalText}"`);
+            }
+            catch (error) {
+                this.logger.error(`STT failed for client ${client.id}: ${error.message}`);
+                client.emit(types_1.S2C_EVENTS.ERROR, {
+                    message: `音声認識に失敗しました: ${error.message}`,
+                });
+                return;
+            }
             const sessionRoom = this.wsConnection.getSessionRoom(clientData.sessionId);
             const currentTurn = this.getCurrentTurnFromState(sessionRoom?.state);
             if (currentTurn > 0) {
+                const canSpeak = this.canClientSpeak(sessionRoom?.state, clientData.participantSide);
+                if (!canSpeak) {
+                    this.logger.warn(`Client ${client.id} tried to speak but it's not their turn`);
+                    client.emit(types_1.S2C_EVENTS.ERROR, {
+                        message: "現在はあなたの発話ターンではありません",
+                    });
+                    return;
+                }
                 await this.debateSession.processUtterance(clientData.sessionId, currentTurn, clientData.participantSide, finalText);
                 this.wsConnection.broadcastToSession(clientData.sessionId, types_1.S2C_EVENTS.TRANSCRIPT_FINAL, {
                     text: finalText,
@@ -151,6 +198,10 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
                     side: clientData.participantSide,
                     turnIndex: currentTurn,
                 });
+                this.logger.log(`Speech processed for session ${clientData.sessionId}, turn ${currentTurn}, side ${clientData.participantSide}: "${finalText}"`);
+            }
+            else {
+                this.logger.warn(`Client ${client.id} spoke but no active turn found`);
             }
         }
         catch (error) {

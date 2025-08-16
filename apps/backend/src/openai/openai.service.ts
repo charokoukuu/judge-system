@@ -33,7 +33,7 @@ export class OpenaiService {
       filename: "audio.webm", // OpenAI requires a filename
       contentType: "audio/webm", // Assuming webm from MediaRecorder, adjust if needed
     });
-    formData.append("model", "whisper-1"); // Using whisper-1 as gpt-4o-mini-transcribe is not a valid model name for this endpoint.
+    formData.append("model", "whisper-1"); // Whisper-1 is the correct model for transcription
 
     try {
       const response = await axios.post(this.transcribeUrl, formData, {

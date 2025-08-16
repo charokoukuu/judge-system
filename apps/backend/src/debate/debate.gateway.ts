@@ -33,6 +33,9 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private readonly logger = new Logger(DebateGateway.name);
 
+  // 音声データを蓄積するためのストレージ
+  private audioBuffers = new Map<string, Buffer[]>();
+
   constructor(
     private readonly wsConnection: WebSocketConnectionService,
     private readonly debateSession: DebateSessionService
@@ -183,6 +186,9 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
       `Audio start for session ${payload.sessionId} from client ${client.id}`
     );
 
+    // クライアントの音声バッファをリセット
+    this.audioBuffers.set(client.id, []);
+
     // 音声認識開始の通知
     this.wsConnection.broadcastToSession(payload.sessionId, "audio:start", {
       clientId: client.id,
@@ -192,19 +198,33 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage(C2S_EVENTS.AUDIO_CHUNK)
   async handleAudioChunk(
-    @MessageBody() payload: AudioChunkPayload,
+    @MessageBody() payload: any, // AudioChunkPayloadの型定義を一時的にanyで回避
     @ConnectedSocket() client: Socket
   ): Promise<void> {
-    // 高頻度イベントのため、ログは最小限に
-    // TODO: OpenAI Whisper APIで音声認識を実装
+    try {
+      // 音声チャンクをバッファに変換（実際の形式に応じて調整）
+      let audioBuffer: Buffer;
 
-    const clientData = this.wsConnection.getClient(client.id);
-    if (clientData?.sessionId) {
-      // 部分認識結果があればブロードキャスト
-      // this.wsConnection.broadcastToSession(clientData.sessionId, S2C_EVENTS.TRANSCRIPT_PARTIAL, {
-      //   text: "認識中...",
-      //   clientId: client.id,
-      // });
+      if (typeof payload.chunk === "string") {
+        // Base64エンコードされたデータの場合
+        audioBuffer = Buffer.from(payload.chunk, "base64");
+      } else if (payload.chunk instanceof ArrayBuffer) {
+        // ArrayBufferの場合
+        audioBuffer = Buffer.from(payload.chunk);
+      } else {
+        this.logger.warn(`Unexpected audio chunk format from ${client.id}`);
+        return;
+      }
+
+      // クライアントごとの音声バッファに追加
+      const clientBuffers = this.audioBuffers.get(client.id) || [];
+      clientBuffers.push(audioBuffer);
+      this.audioBuffers.set(client.id, clientBuffers);
+
+      // 高頻度イベントのため、ログは最小限に
+      // this.logger.debug(`Audio chunk received from ${client.id}: ${audioBuffer.length} bytes`);
+    } catch (error) {
+      this.logger.error(`Failed to process audio chunk: ${error.message}`);
     }
   }
 
@@ -218,11 +238,42 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       const clientData = this.wsConnection.getClient(client.id);
       if (!clientData?.sessionId || !clientData.participantSide) {
+        this.logger.warn(
+          `Client ${client.id} not properly connected to session`
+        );
         return;
       }
 
-      // TODO: 最終的な音声認識結果を処理
-      const finalText = "これは仮のテキストです"; // 実際はWhisper APIの結果
+      // 蓄積された音声データを取得
+      const clientBuffers = this.audioBuffers.get(client.id) || [];
+      this.audioBuffers.delete(client.id); // クリーンアップ
+
+      if (clientBuffers.length === 0) {
+        this.logger.warn(`No audio data received from client ${client.id}`);
+        return;
+      }
+
+      // 全ての音声チャンクを結合
+      const combinedAudioBuffer = Buffer.concat(clientBuffers);
+      this.logger.log(
+        `Processing ${combinedAudioBuffer.length} bytes of audio data from client ${client.id}`
+      );
+
+      // OpenAI Whisper APIで音声認識
+      let finalText: string;
+      try {
+        finalText =
+          await this.debateSession.transcribeAudio(combinedAudioBuffer);
+        this.logger.log(`STT result for client ${client.id}: "${finalText}"`);
+      } catch (error) {
+        this.logger.error(
+          `STT failed for client ${client.id}: ${error.message}`
+        );
+        client.emit(S2C_EVENTS.ERROR, {
+          message: `音声認識に失敗しました: ${error.message}`,
+        });
+        return;
+      }
 
       // 現在のターンとサイドを取得
       const sessionRoom = this.wsConnection.getSessionRoom(
@@ -231,6 +282,21 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const currentTurn = this.getCurrentTurnFromState(sessionRoom?.state);
 
       if (currentTurn > 0) {
+        // 現在のターンで発話可能かチェック
+        const canSpeak = this.canClientSpeak(
+          sessionRoom?.state,
+          clientData.participantSide
+        );
+        if (!canSpeak) {
+          this.logger.warn(
+            `Client ${client.id} tried to speak but it's not their turn`
+          );
+          client.emit(S2C_EVENTS.ERROR, {
+            message: "現在はあなたの発話ターンではありません",
+          });
+          return;
+        }
+
         // 発話を保存
         await this.debateSession.processUtterance(
           clientData.sessionId,
@@ -250,6 +316,12 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
             turnIndex: currentTurn,
           }
         );
+
+        this.logger.log(
+          `Speech processed for session ${clientData.sessionId}, turn ${currentTurn}, side ${clientData.participantSide}: "${finalText}"`
+        );
+      } else {
+        this.logger.warn(`Client ${client.id} spoke but no active turn found`);
       }
     } catch (error) {
       this.logger.error(`Failed to process audio stop: ${error.message}`);

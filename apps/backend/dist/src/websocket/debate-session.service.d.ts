@@ -43,6 +43,7 @@ export declare class DebateSessionService {
     private evaluateTurn;
     private performFinalJudgment;
     private generateAndBroadcastAudio;
+    transcribeAudio(audioBuffer: Buffer): Promise<string>;
     onAudioPlaybackCompleted(sessionId: string, text: string, options?: {
         error?: boolean;
         noAudio?: boolean;

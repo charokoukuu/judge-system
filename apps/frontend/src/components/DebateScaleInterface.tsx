@@ -1,53 +1,111 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useDebateWebSocket } from "../hooks/useDebateWebSocket";
+import { useRecording } from "../hooks/useRecording";
 
 export default function DebateScaleInterface() {
   const [debateTheme, setDebateTheme] = useState("");
   const [isDebateStarted, setIsDebateStarted] = useState(false);
   const [currentScore, setCurrentScore] = useState(0); // -1 to 1, 左(-1) ← → 右(1)
   const [aiSubtitle, setAiSubtitle] = useState("AIジャッジの準備ができました");
-  const [isRecording, setIsRecording] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isCountdownActive, setIsCountdownActive] = useState(false);
+  const [lastProcessedTimestamp, setLastProcessedTimestamp] = useState<
+    number | null
+  >(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { isConnected, session, messages, error, countdownEvent, createSession, startSession } =
-    useDebateWebSocket();
+  const {
+    isConnected,
+    session,
+    messages,
+    error,
+    countdownEvent,
+    createSession,
+    startSession,
+    sendAudioStart,
+    sendAudioChunk,
+    sendAudioStop,
+  } = useDebateWebSocket();
+
+  // 音声録音機能
+  const {
+    isRecording: isRecordingAudio,
+    startRecording,
+    stopRecording,
+  } = useRecording({
+    enableKeyboardShortcuts: false, // キーボードショートカットを無効化
+    onAudioChunk: (chunk: Blob) => {
+      // 音声チャンクをWebSocketで送信
+      if (session?.sessionId) {
+        chunk.arrayBuffer().then((buffer) => {
+          sendAudioChunk(buffer);
+        });
+      }
+    },
+    onRecordingStart: () => {
+      console.log("Recording started");
+      if (session?.sessionId) {
+        sendAudioStart(session.sessionId);
+      }
+    },
+    onRecordingStop: () => {
+      console.log("Recording stopped");
+      sendAudioStop();
+    },
+  });
 
   // カウントダウン機能
-  const startCountdown = (seconds: number) => {
-    setCountdown(seconds);
-    setIsCountdownActive(true);
+  const startCountdown = useCallback(
+    (seconds: number) => {
+      setCountdown(seconds);
+      setIsCountdownActive(true);
 
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current);
-    }
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+      }
 
-    countdownIntervalRef.current = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev === null || prev <= 1) {
-          setIsCountdownActive(false);
-          if (countdownIntervalRef.current) {
-            clearInterval(countdownIntervalRef.current);
-            countdownIntervalRef.current = null;
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev === null || prev <= 1) {
+            setIsCountdownActive(false);
+            if (countdownIntervalRef.current) {
+              clearInterval(countdownIntervalRef.current);
+              countdownIntervalRef.current = null;
+            }
+
+            // カウントダウン終了時に録音も自動停止
+            if (isRecordingAudio) {
+              console.log(
+                "Auto-stopping recording due to countdown reaching 0"
+              );
+              stopRecording();
+            }
+
+            return 0;
           }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
+          return prev - 1;
+        });
+      }, 1000);
+    },
+    [isRecordingAudio, stopRecording]
+  );
 
-  const stopCountdown = () => {
+  const stopCountdown = useCallback(() => {
     setIsCountdownActive(false);
     setCountdown(null);
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current);
       countdownIntervalRef.current = null;
     }
-  };
+
+    // カウントダウン停止時に録音も自動停止
+    if (isRecordingAudio) {
+      console.log("Auto-stopping recording due to countdown end");
+      stopRecording();
+    }
+  }, [isRecordingAudio, stopRecording]);
 
   // クリーンアップ
   useEffect(() => {
@@ -80,20 +138,42 @@ export default function DebateScaleInterface() {
       session?.state?.includes("JUDGING")
     ) {
       setCurrentScore(0); // 中央
-      stopCountdown(); // カウントダウン停止
+      stopCountdown(); // カウントダウン停止（録音も自動停止）
     } else {
       setCurrentScore(0); // 中央
-      stopCountdown(); // カウントダウン停止
+      stopCountdown(); // カウントダウン停止（録音も自動停止）
     }
-  }, [session?.state]);
+  }, [session?.state, stopCountdown]);
 
-  // カウントダウンイベントに基づいてカウントダウン開始
+  // カウントダウンイベントに基づいてカウントダウン開始と自動録音
   useEffect(() => {
-    if (countdownEvent) {
+    if (
+      countdownEvent &&
+      !isCountdownActive &&
+      !isRecordingAudio &&
+      countdownEvent.timestamp !== lastProcessedTimestamp
+    ) {
       console.log("Starting countdown from event:", countdownEvent);
+      setLastProcessedTimestamp(countdownEvent.timestamp);
       startCountdown(countdownEvent.duration);
+
+      // カウントダウン開始と同時に録音を自動開始
+      console.log("Auto-starting recording due to countdown start");
+      startRecording();
+    } else if (countdownEvent?.timestamp === lastProcessedTimestamp) {
+      console.log(
+        "Skipping duplicate countdown event:",
+        countdownEvent.timestamp
+      );
     }
-  }, [countdownEvent]);
+  }, [
+    countdownEvent,
+    isCountdownActive,
+    isRecordingAudio,
+    lastProcessedTimestamp,
+    startCountdown,
+    startRecording,
+  ]);
 
   // セッションが作成されたら自動的に開始状態に
   useEffect(() => {
@@ -113,11 +193,11 @@ export default function DebateScaleInterface() {
   };
 
   const handleMicToggle = () => {
-    setIsRecording(!isRecording);
-    // TODO: 実際の録音開始/停止処理
-  };
-
-  // 天秤の傾きを計算（-45度から+45度）
+    // 手動での録音操作は無効化 - カウントダウンによる自動制御のみ
+    console.log(
+      "Manual mic toggle disabled - recording is controlled by countdown"
+    );
+  }; // 天秤の傾きを計算（-45度から+45度）
   const scaleRotation = currentScore * 45;
 
   return (
@@ -241,26 +321,25 @@ export default function DebateScaleInterface() {
               </div>
             </div>
 
-            {/* 音声入力コントロール */}
+            {/* 録音状態表示（クリック無効） */}
             <div className="flex justify-center space-x-6">
-              <button
-                onClick={handleMicToggle}
+              <div
                 className={`
                   w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-bold transition-all
                   ${
-                    isRecording
-                      ? "bg-red-500 hover:bg-red-600 animate-pulse"
-                      : "bg-gray-600 hover:bg-gray-700"
+                    isRecordingAudio
+                      ? "bg-red-500 animate-pulse"
+                      : "bg-gray-600"
                   }
                 `}
               >
                 🎤
-              </button>
+              </div>
 
               {/* 録音状態表示 */}
-              {isRecording && (
+              {isRecordingAudio && (
                 <div className="flex items-center space-x-2">
-                  <div className="text-white text-sm">🔴 録音中</div>
+                  <div className="text-white text-sm">🔴 録音中（自動）</div>
                 </div>
               )}
             </div>

@@ -534,6 +534,18 @@ ${turnResults.join("\n")}
             });
         }
     }
+    async transcribeAudio(audioBuffer) {
+        this.logger.log(`Transcribing audio buffer of size: ${audioBuffer.length}`);
+        try {
+            const transcription = await this.openaiService.transcribeAudio(audioBuffer);
+            this.logger.log(`Transcription successful: "${transcription}"`);
+            return transcription;
+        }
+        catch (error) {
+            this.logger.error(`Transcription failed: ${error.message}`);
+            throw new Error(`音声認識に失敗しました: ${error.message}`);
+        }
+    }
     onAudioPlaybackCompleted(sessionId, text, options = {}) {
         this.logger.log(`Audio playback completed for session ${sessionId}: "${text}"`);
         const pendingKey = `${sessionId}-${text}`;
