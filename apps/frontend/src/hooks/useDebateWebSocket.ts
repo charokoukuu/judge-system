@@ -186,6 +186,52 @@ export const useDebateWebSocket = () => {
       addMessage(data.message, "moderator");
     });
 
+    // 音声生成完了
+    socket.on("audio:generated", (data: any) => {
+      console.log("Audio generated:", data);
+
+      // テキストをメッセージに追加
+      if (data.text) {
+        addMessage(data.text, "moderator");
+      }
+
+      // 音声データがある場合は再生
+      if (data.audioData && data.audioType) {
+        try {
+          // Base64音声データをBlob化
+          const audioBytes = atob(data.audioData);
+          const audioArray = new Uint8Array(audioBytes.length);
+          for (let i = 0; i < audioBytes.length; i++) {
+            audioArray[i] = audioBytes.charCodeAt(i);
+          }
+
+          const audioBlob = new Blob([audioArray], { type: data.audioType });
+          const audioUrl = URL.createObjectURL(audioBlob);
+
+          // 音声再生
+          const audio = new Audio(audioUrl);
+          audio
+            .play()
+            .then(() => {
+              console.log("Audio playback started");
+            })
+            .catch((err) => {
+              console.error("Audio playback failed:", err);
+            })
+            .finally(() => {
+              // メモリリークを防ぐためにURLを解放
+              setTimeout(() => URL.revokeObjectURL(audioUrl), 1000);
+            });
+        } catch (error) {
+          console.error("Failed to process audio data:", error);
+        }
+      } else if (data.textOnly) {
+        console.log("Text-only message (TTS unavailable)");
+      } else if (data.error) {
+        console.warn("Audio generation failed:", data.error);
+      }
+    });
+
     // 判定開始
     socket.on("judgment:started", (data: any) => {
       console.log("Judgment started:", data);

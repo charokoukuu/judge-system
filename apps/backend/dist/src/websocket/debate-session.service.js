@@ -496,13 +496,24 @@ ${turnResults.join("\n")}
         try {
             this.logger.log(`Generating audio for text: "${text}"`);
             const audioBuffer = await this.stylebartService.textToSpeech(text);
-            const audioBase64 = audioBuffer.toString("base64");
-            this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
-                text,
-                audioData: audioBase64,
-                audioType: "audio/wav",
-            });
-            this.logger.log(`Audio generated and broadcasted for session ${sessionId}`);
+            if (audioBuffer) {
+                const audioBase64 = audioBuffer.toString("base64");
+                this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
+                    text,
+                    audioData: audioBase64,
+                    audioType: "audio/wav",
+                });
+                this.logger.log(`Audio generated and broadcasted for session ${sessionId}`);
+            }
+            else {
+                this.logger.log(`TTS API unavailable, sending text only for session ${sessionId}`);
+                this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
+                    text,
+                    audioData: null,
+                    audioType: null,
+                    textOnly: true,
+                });
+            }
         }
         catch (error) {
             this.logger.error(`Failed to generate audio: ${error.message}`);

@@ -710,18 +710,32 @@ ${turnResults.join("\n")}
       // Style-BART APIを使用して音声を生成
       const audioBuffer = await this.stylebartService.textToSpeech(text);
 
-      // 音声データをBase64エンコード
-      const audioBase64 = audioBuffer.toString("base64");
+      if (audioBuffer) {
+        // 音声データをBase64エンコード
+        const audioBase64 = audioBuffer.toString("base64");
 
-      this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
-        text,
-        audioData: audioBase64,
-        audioType: "audio/wav", // Style-BARTが返すフォーマットに応じて調整
-      });
+        this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
+          text,
+          audioData: audioBase64,
+          audioType: "audio/wav", // Style-BARTが返すフォーマットに応じて調整
+        });
 
-      this.logger.log(
-        `Audio generated and broadcasted for session ${sessionId}`
-      );
+        this.logger.log(
+          `Audio generated and broadcasted for session ${sessionId}`
+        );
+      } else {
+        // TTS APIが利用できない場合はテキストのみ送信
+        this.logger.log(
+          `TTS API unavailable, sending text only for session ${sessionId}`
+        );
+
+        this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
+          text,
+          audioData: null,
+          audioType: null,
+          textOnly: true,
+        });
+      }
     } catch (error) {
       this.logger.error(`Failed to generate audio: ${error.message}`);
 
