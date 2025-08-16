@@ -10,8 +10,8 @@ COPY apps/backend/package.json ./apps/backend/
 COPY apps/frontend/package.json ./apps/frontend/
 COPY packages/types/package.json ./packages/types/
 
-# Install pnpm
-RUN npm install -g pnpm
+# Enable corepack and activate the pnpm version declared in root package.json (packageManager field)
+RUN corepack enable && corepack prepare pnpm@8.15.6 --activate
 
 # Install all dependencies for the entire monorepo
 # In a real CI/CD, the lockfile should be committed and up-to-date.
@@ -21,6 +21,9 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install
 # Stage 2: Build the application
 FROM node:18-alpine AS builder
 WORKDIR /usr/src/app
+
+# Enable corepack and activate pnpm (needed because turbo invokes the package manager during build)
+RUN corepack enable && corepack prepare pnpm@8.15.6 --activate
 
 # Copy files from the previous stage
 COPY --from=deps /usr/src/app/node_modules ./node_modules

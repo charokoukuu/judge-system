@@ -6,14 +6,14 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
   ConnectedSocket,
-} from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
-import { Logger } from '@nestjs/common';
-import { C2S_EVENTS, S2C_EVENTS, SessionCreatePayload } from '@repo/types';
+} from "@nestjs/websockets";
+import { Server, Socket } from "socket.io";
+import { Logger } from "@nestjs/common";
+import { C2S_EVENTS, S2C_EVENTS, SessionCreatePayload } from "@repo/types";
 
-@WebSocketGateway(8080, {
+@WebSocketGateway({
   cors: {
-    origin: '*', // Allow all origins for simplicity in MVP
+    origin: "*", // Allow all origins for simplicity in MVP
   },
 })
 export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -33,7 +33,7 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage(C2S_EVENTS.SESSION_CREATE)
   handleSessionCreate(
     @MessageBody() payload: SessionCreatePayload,
-    @ConnectedSocket() client: Socket,
+    @ConnectedSocket() client: Socket
   ): void {
     this.logger.log(`Received session:create from ${client.id}`);
     this.logger.log(`Payload: ${JSON.stringify(payload)}`);
@@ -49,7 +49,9 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
       config: payload,
     });
 
-    this.logger.log(`Emitted session:created to ${client.id} with ID ${sessionId}`);
+    this.logger.log(
+      `Emitted session:created to ${client.id} with ID ${sessionId}`
+    );
   }
 
   // Placeholder for audio chunk handling
