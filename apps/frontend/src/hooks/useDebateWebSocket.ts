@@ -14,7 +14,7 @@ import {
   ParticipantRole,
 } from "@repo/types";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3010";
 
 export interface DebateSession {
   sessionId: string;
@@ -45,6 +45,8 @@ export const useDebateWebSocket = () => {
   useEffect(() => {
     if (socketRef.current) return;
 
+    console.log(`Connecting to WebSocket at: ${WS_URL}`);
+    
     const socket = io(WS_URL, {
       reconnection: true,
       reconnectionAttempts: 5,
