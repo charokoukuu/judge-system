@@ -70,15 +70,32 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       // クライアントをモデレーターとしてセッションに参加
-      this.wsConnection.joinSession(client.id, sessionId, "moderator");
-
-      // セッション作成成功をクライアントに通知
-      client.emit(S2C_EVENTS.SESSION_CREATED, {
+      const joinSuccess = this.wsConnection.joinSession(
+        client.id,
         sessionId,
-        config: payload,
-      });
+        "moderator"
+      );
 
-      this.logger.log(`Session created: ${sessionId} for client ${client.id}`);
+      if (joinSuccess) {
+        // セッション作成成功をクライアントに通知
+        client.emit(S2C_EVENTS.SESSION_CREATED, {
+          sessionId,
+          config: payload,
+        });
+
+        // モデレーターとして参加したことも通知
+        client.emit("session:joined", {
+          sessionId,
+          role: "moderator",
+          side: undefined, // モデレーターは特定のサイドに属さない
+        });
+
+        this.logger.log(
+          `Session created: ${sessionId} for client ${client.id} as moderator`
+        );
+      } else {
+        throw new Error("Failed to join session as moderator");
+      }
     } catch (error) {
       this.logger.error(`Failed to create session: ${error.message}`);
       client.emit(S2C_EVENTS.ERROR, {
@@ -237,9 +254,22 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.log(`Audio stop from client ${client.id}`);
 
       const clientData = this.wsConnection.getClient(client.id);
-      if (!clientData?.sessionId || !clientData.participantSide) {
+      // 循環参照を避けるために必要な情報のみをログ出力
+      this.logger.debug(
+        `Client data for ${client.id}: sessionId=${clientData?.sessionId}, role=${clientData?.role}, side=${clientData?.participantSide}`
+      );
+
+      if (!clientData?.sessionId) {
         this.logger.warn(
-          `Client ${client.id} not properly connected to session`
+          `Client ${client.id} not connected to session - sessionId: ${clientData?.sessionId}`
+        );
+        return;
+      }
+
+      // モデレーターの場合はparticipantSideがundefinedでも処理を続行
+      if (!clientData.participantSide && clientData.role !== "moderator") {
+        this.logger.warn(
+          `Client ${client.id} not properly connected to session - role: ${clientData?.role}, side: ${clientData?.participantSide}`
         );
         return;
       }
@@ -262,12 +292,17 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // OpenAI Whisper APIで音声認識
       let finalText: string;
       try {
+        this.logger.log(
+          `[STT] 音声認識を開始 - クライアント: ${client.id}, 音声サイズ: ${combinedAudioBuffer.length} bytes`
+        );
         finalText =
           await this.debateSession.transcribeAudio(combinedAudioBuffer);
-        this.logger.log(`STT result for client ${client.id}: "${finalText}"`);
+        this.logger.log(
+          `[STT] 音声認識成功 - クライアント: ${client.id}, 結果: "${finalText}"`
+        );
       } catch (error) {
         this.logger.error(
-          `STT failed for client ${client.id}: ${error.message}`
+          `[STT] 音声認識失敗 - クライアント: ${client.id}, エラー: ${error.message}`
         );
         client.emit(S2C_EVENTS.ERROR, {
           message: `音声認識に失敗しました: ${error.message}`,
@@ -282,7 +317,14 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const currentTurn = this.getCurrentTurnFromState(sessionRoom?.state);
 
       if (currentTurn > 0) {
-        // 現在のターンで発話可能かチェック
+        // モデレーターの場合は発話チェックをスキップ
+        if (clientData.role === "moderator") {
+          this.logger.log(`[STT] Moderator ${client.id} spoke: "${finalText}"`);
+          // モデレーターの発話はデバッグ用としてログのみ出力
+          return;
+        }
+
+        // 参加者の場合は発話可能かチェック
         const canSpeak = this.canClientSpeak(
           sessionRoom?.state,
           clientData.participantSide
@@ -301,7 +343,7 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
         await this.debateSession.processUtterance(
           clientData.sessionId,
           currentTurn,
-          clientData.participantSide,
+          clientData.participantSide!,
           finalText
         );
 
@@ -318,7 +360,7 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
         );
 
         this.logger.log(
-          `Speech processed for session ${clientData.sessionId}, turn ${currentTurn}, side ${clientData.participantSide}: "${finalText}"`
+          `[STT→DB] セッション ${clientData.sessionId}, ターン ${currentTurn}, ${clientData.participantSide}側に発話処理完了: "${finalText}"`
         );
       } else {
         this.logger.warn(`Client ${client.id} spoke but no active turn found`);

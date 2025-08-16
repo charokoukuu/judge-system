@@ -5,6 +5,7 @@ import { OpenaiModule } from "./openai/openai.module";
 import { StylebartModule } from "./stylebart/stylebart.module";
 import { RepositoriesModule } from "./repositories/repositories.module";
 import { WebSocketModule } from "./websocket/websocket.module";
+import { UtterancesController } from "./utterances/utterances.controller";
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { WebSocketModule } from "./websocket/websocket.module";
     StylebartModule,
     WebSocketModule,
   ],
-  controllers: [], // No REST controllers for now
+  controllers: [UtterancesController], // REST API controllers
   providers: [DebateGateway],
 })
 export class AppModule {}

@@ -46,12 +46,22 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
                 theme: payload.theme,
                 maxTurns: payload.maxTurns || 3,
             });
-            this.wsConnection.joinSession(client.id, sessionId, "moderator");
-            client.emit(types_1.S2C_EVENTS.SESSION_CREATED, {
-                sessionId,
-                config: payload,
-            });
-            this.logger.log(`Session created: ${sessionId} for client ${client.id}`);
+            const joinSuccess = this.wsConnection.joinSession(client.id, sessionId, "moderator");
+            if (joinSuccess) {
+                client.emit(types_1.S2C_EVENTS.SESSION_CREATED, {
+                    sessionId,
+                    config: payload,
+                });
+                client.emit("session:joined", {
+                    sessionId,
+                    role: "moderator",
+                    side: undefined,
+                });
+                this.logger.log(`Session created: ${sessionId} for client ${client.id} as moderator`);
+            }
+            else {
+                throw new Error("Failed to join session as moderator");
+            }
         }
         catch (error) {
             this.logger.error(`Failed to create session: ${error.message}`);
@@ -155,8 +165,13 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
         try {
             this.logger.log(`Audio stop from client ${client.id}`);
             const clientData = this.wsConnection.getClient(client.id);
-            if (!clientData?.sessionId || !clientData.participantSide) {
-                this.logger.warn(`Client ${client.id} not properly connected to session`);
+            this.logger.debug(`Client data for ${client.id}: sessionId=${clientData?.sessionId}, role=${clientData?.role}, side=${clientData?.participantSide}`);
+            if (!clientData?.sessionId) {
+                this.logger.warn(`Client ${client.id} not connected to session - sessionId: ${clientData?.sessionId}`);
+                return;
+            }
+            if (!clientData.participantSide && clientData.role !== "moderator") {
+                this.logger.warn(`Client ${client.id} not properly connected to session - role: ${clientData?.role}, side: ${clientData?.participantSide}`);
                 return;
             }
             const clientBuffers = this.audioBuffers.get(client.id) || [];
@@ -169,12 +184,13 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
             this.logger.log(`Processing ${combinedAudioBuffer.length} bytes of audio data from client ${client.id}`);
             let finalText;
             try {
+                this.logger.log(`[STT] 音声認識を開始 - クライアント: ${client.id}, 音声サイズ: ${combinedAudioBuffer.length} bytes`);
                 finalText =
                     await this.debateSession.transcribeAudio(combinedAudioBuffer);
-                this.logger.log(`STT result for client ${client.id}: "${finalText}"`);
+                this.logger.log(`[STT] 音声認識成功 - クライアント: ${client.id}, 結果: "${finalText}"`);
             }
             catch (error) {
-                this.logger.error(`STT failed for client ${client.id}: ${error.message}`);
+                this.logger.error(`[STT] 音声認識失敗 - クライアント: ${client.id}, エラー: ${error.message}`);
                 client.emit(types_1.S2C_EVENTS.ERROR, {
                     message: `音声認識に失敗しました: ${error.message}`,
                 });
@@ -183,6 +199,10 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
             const sessionRoom = this.wsConnection.getSessionRoom(clientData.sessionId);
             const currentTurn = this.getCurrentTurnFromState(sessionRoom?.state);
             if (currentTurn > 0) {
+                if (clientData.role === "moderator") {
+                    this.logger.log(`[STT] Moderator ${client.id} spoke: "${finalText}"`);
+                    return;
+                }
                 const canSpeak = this.canClientSpeak(sessionRoom?.state, clientData.participantSide);
                 if (!canSpeak) {
                     this.logger.warn(`Client ${client.id} tried to speak but it's not their turn`);
@@ -198,7 +218,7 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
                     side: clientData.participantSide,
                     turnIndex: currentTurn,
                 });
-                this.logger.log(`Speech processed for session ${clientData.sessionId}, turn ${currentTurn}, side ${clientData.participantSide}: "${finalText}"`);
+                this.logger.log(`[STT→DB] セッション ${clientData.sessionId}, ターン ${currentTurn}, ${clientData.participantSide}側に発話処理完了: "${finalText}"`);
             }
             else {
                 this.logger.warn(`Client ${client.id} spoke but no active turn found`);

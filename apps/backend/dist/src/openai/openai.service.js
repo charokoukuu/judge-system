@@ -33,7 +33,7 @@ let OpenaiService = OpenaiService_1 = class OpenaiService {
             filename: "audio.webm",
             contentType: "audio/webm",
         });
-        formData.append("model", "whisper-1");
+        formData.append("model", "gpt-4o-mini-transcribe");
         try {
             const response = await axios_1.default.post(this.transcribeUrl, formData, {
                 headers: {

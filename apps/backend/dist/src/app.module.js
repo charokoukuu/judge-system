@@ -14,6 +14,7 @@ const openai_module_1 = require("./openai/openai.module");
 const stylebart_module_1 = require("./stylebart/stylebart.module");
 const repositories_module_1 = require("./repositories/repositories.module");
 const websocket_module_1 = require("./websocket/websocket.module");
+const utterances_controller_1 = require("./utterances/utterances.controller");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -29,7 +30,7 @@ exports.AppModule = AppModule = __decorate([
             stylebart_module_1.StylebartModule,
             websocket_module_1.WebSocketModule,
         ],
-        controllers: [],
+        controllers: [utterances_controller_1.UtterancesController],
         providers: [debate_gateway_1.DebateGateway],
     })
 ], AppModule);

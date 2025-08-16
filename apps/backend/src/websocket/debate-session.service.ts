@@ -112,7 +112,7 @@ export class DebateSessionService {
       // 音声再生完了後に第1ターンを開始
       setTimeout(() => {
         this.startTurn(sessionId, 1, Side.RIGHT);
-      }, 2000); // 1秒の余裕を持って開始
+      }, 4000); // 1秒の余裕を持って開始
 
       this.logger.log(`Session ${sessionId} started`);
     } catch (error) {
@@ -323,6 +323,15 @@ export class DebateSessionService {
         turnIndex
       );
 
+      // 発話データのログ出力
+      this.logger.log(
+        `[DB確認] ターン ${turnIndex} の発話データ取得: ${utterances.length}件`
+      );
+      utterances.forEach((utterance, index) => {
+        const sideText = utterance.side === Side.RIGHT ? "右" : "左";
+        this.logger.log(`  ${index + 1}. ${sideText}側: "${utterance.text}"`);
+      });
+
       if (utterances.length === 0) {
         this.logger.warn(
           `No utterances found for session ${sessionId} turn ${turnIndex}`
@@ -502,6 +511,7 @@ export class DebateSessionService {
     text: string
   ): Promise<void> {
     try {
+      // データベースに発話を保存
       await this.utteranceRepository.upsertUtterance({
         sessionId,
         turnIndex,
@@ -509,6 +519,7 @@ export class DebateSessionService {
         text,
       });
 
+      // WebSocketで他のクライアントに通知
       this.wsConnection.broadcastToSession(sessionId, "utterance:received", {
         sessionId,
         turnIndex,
@@ -516,8 +527,10 @@ export class DebateSessionService {
         text,
       });
 
+      // 詳細ログを出力
+      const sideText = side === Side.RIGHT ? "右" : "左";
       this.logger.log(
-        `Processed utterance for session ${sessionId}, turn ${turnIndex}, side ${side}`
+        `[STT] セッション ${sessionId}, ターン ${turnIndex}, ${sideText}側の発話をDBに保存: "${text}"`
       );
     } catch (error) {
       this.logger.error(`Failed to process utterance: ${error.message}`);

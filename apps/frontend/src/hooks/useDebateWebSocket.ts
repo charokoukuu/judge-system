@@ -221,6 +221,9 @@ export const useDebateWebSocket = () => {
       });
       addMessage(`セッションが作成されました: ${data.config.theme}`, "system");
       setIsLoading(false);
+
+      // セッション作成者は既にバックエンドでモデレーターとして参加済み
+      // 自動参加は不要
     });
 
     // セッション参加成功
@@ -311,10 +314,12 @@ export const useDebateWebSocket = () => {
 
     // 発話受信
     socket.on(S2C_EVENTS.TRANSCRIPT_FINAL, (data: TranscriptFinalPayload) => {
-      console.log("Transcript received:", data);
+      console.log("[STT] 音声認識結果を受信:", data);
       const side = (data as any).side;
       const sideText = side === "RIGHT" ? "右" : "左";
-      addMessage(`${sideText}: ${data.text}`, "transcript", side);
+      const turnText = `ターン${(data as any).turnIndex}`;
+      console.log(`[STT] ${turnText} ${sideText}側: "${data.text}"`);
+      addMessage(`${turnText} ${sideText}: ${data.text}`, "transcript", side);
     });
 
     // ターン評価

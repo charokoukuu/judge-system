@@ -70,7 +70,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             await this.generateAndBroadcastAudioSync(sessionId, startMessage);
             setTimeout(() => {
                 this.startTurn(sessionId, 1, client_1.Side.RIGHT);
-            }, 2000);
+            }, 4000);
             this.logger.log(`Session ${sessionId} started`);
         }
         catch (error) {
@@ -211,6 +211,11 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             await this.sessionRepository.updateState(sessionId, wrapUpState);
             this.wsConnection.updateSessionState(sessionId, wrapUpState);
             const utterances = await this.utteranceRepository.findBySessionAndTurn(sessionId, turnIndex);
+            this.logger.log(`[DB確認] ターン ${turnIndex} の発話データ取得: ${utterances.length}件`);
+            utterances.forEach((utterance, index) => {
+                const sideText = utterance.side === client_1.Side.RIGHT ? "右" : "左";
+                this.logger.log(`  ${index + 1}. ${sideText}側: "${utterance.text}"`);
+            });
             if (utterances.length === 0) {
                 this.logger.warn(`No utterances found for session ${sessionId} turn ${turnIndex}`);
                 setTimeout(() => {
@@ -341,7 +346,8 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 side,
                 text,
             });
-            this.logger.log(`Processed utterance for session ${sessionId}, turn ${turnIndex}, side ${side}`);
+            const sideText = side === client_1.Side.RIGHT ? "右" : "左";
+            this.logger.log(`[STT] セッション ${sessionId}, ターン ${turnIndex}, ${sideText}側の発話をDBに保存: "${text}"`);
         }
         catch (error) {
             this.logger.error(`Failed to process utterance: ${error.message}`);
