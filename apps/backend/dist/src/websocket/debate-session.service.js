@@ -67,11 +67,11 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 theme: session.theme,
                 message: startMessage,
             });
-            this.generateAndBroadcastAudioAsync(sessionId, startMessage);
-            this.logger.log(`Session ${sessionId} started`);
+            await this.generateAndBroadcastAudioSync(sessionId, startMessage);
             setTimeout(() => {
                 this.startTurn(sessionId, 1, client_1.Side.RIGHT);
-            }, 2000);
+            }, 1000);
+            this.logger.log(`Session ${sessionId} started`);
         }
         catch (error) {
             this.logger.error(`Failed to start session ${sessionId}: ${error.message}`);
@@ -126,8 +126,9 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 duration: 30,
                 message: "あなたの発話時間です",
             });
+            await this.generateAndBroadcastAudioSync(sessionId, message);
             this.setTurnTimer(sessionId, turnIndex, side);
-            this.generateAndBroadcastAudioAsync(sessionId, message);
+            this.logger.log(`Timer started for turn ${turnIndex} after audio completion in session ${sessionId}`);
             this.logger.log(`Started turn ${turnIndex} for ${side} side in session ${sessionId}`);
         }
         catch (error) {
@@ -500,6 +501,7 @@ ${turnResults.join("\n")}
             if (audioBuffer) {
                 const audioBase64 = audioBuffer.toString("base64");
                 this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
+                    sessionId,
                     text,
                     audioData: audioBase64,
                     audioType: "audio/wav",
@@ -509,6 +511,7 @@ ${turnResults.join("\n")}
             else {
                 this.logger.log(`TTS API unavailable, sending text only for session ${sessionId}`);
                 this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
+                    sessionId,
                     text,
                     audioData: null,
                     audioType: null,
@@ -594,9 +597,18 @@ ${turnResults.join("\n")}
             await new Promise((resolve) => setTimeout(resolve, 1000));
         }
     }
-    generateAndBroadcastAudioAsync(sessionId, text) {
-        this.generateAndBroadcastAudio(sessionId, text).catch((error) => {
+    generateAndBroadcastAudioAsync(sessionId, text, onAudioCompleted) {
+        this.generateAndBroadcastAudio(sessionId, text)
+            .then(() => {
+            if (onAudioCompleted) {
+                onAudioCompleted();
+            }
+        })
+            .catch((error) => {
             this.logger.error(`Async audio generation failed: ${error.message}`);
+            if (onAudioCompleted) {
+                onAudioCompleted();
+            }
         });
     }
     async preloadCommonAudioMessages() {

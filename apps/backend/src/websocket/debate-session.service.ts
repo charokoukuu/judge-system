@@ -106,15 +106,15 @@ export class DebateSessionService {
         message: startMessage,
       });
 
-      // TTSでアナウンス音声を生成・配信（並行実行）
-      this.generateAndBroadcastAudioAsync(sessionId, startMessage);
+      // TTSでアナウンス音声を生成・配信、完了後に第1ターンを開始
+      await this.generateAndBroadcastAudioSync(sessionId, startMessage);
 
-      this.logger.log(`Session ${sessionId} started`);
-
-      // 少し待ってから第1ターンを開始（音声生成を待たない）
+      // 音声再生完了後に第1ターンを開始
       setTimeout(() => {
         this.startTurn(sessionId, 1, Side.RIGHT);
-      }, 2000); // 2秒に短縮
+      }, 1000); // 1秒の余裕を持って開始
+
+      this.logger.log(`Session ${sessionId} started`);
     } catch (error) {
       this.logger.error(
         `Failed to start session ${sessionId}: ${error.message}`
@@ -187,11 +187,14 @@ export class DebateSessionService {
         message: "あなたの発話時間です",
       });
 
-      // 30秒タイマーを即座に設定（音声生成を待たない）
-      this.setTurnTimer(sessionId, turnIndex, side);
+      // TTSでアナウンス、完了後にタイマー開始
+      await this.generateAndBroadcastAudioSync(sessionId, message);
 
-      // TTSでアナウンス（並行実行）
-      this.generateAndBroadcastAudioAsync(sessionId, message);
+      // 音声再生完了後にタイマーを開始
+      this.setTurnTimer(sessionId, turnIndex, side);
+      this.logger.log(
+        `Timer started for turn ${turnIndex} after audio completion in session ${sessionId}`
+      );
 
       this.logger.log(
         `Started turn ${turnIndex} for ${side} side in session ${sessionId}`
@@ -724,6 +727,7 @@ ${turnResults.join("\n")}
         const audioBase64 = audioBuffer.toString("base64");
 
         this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
+          sessionId,
           text,
           audioData: audioBase64,
           audioType: "audio/wav", // Style-BARTが返すフォーマットに応じて調整
@@ -739,6 +743,7 @@ ${turnResults.join("\n")}
         );
 
         this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
+          sessionId,
           text,
           audioData: null,
           audioType: null,
@@ -879,12 +884,24 @@ ${turnResults.join("\n")}
    */
   private generateAndBroadcastAudioAsync(
     sessionId: string,
-    text: string
+    text: string,
+    onAudioCompleted?: () => void
   ): void {
     // 非同期で音声生成を実行（呼び出し元をブロックしない）
-    this.generateAndBroadcastAudio(sessionId, text).catch((error) => {
-      this.logger.error(`Async audio generation failed: ${error.message}`);
-    });
+    this.generateAndBroadcastAudio(sessionId, text)
+      .then(() => {
+        // 音声生成が成功した場合、コールバックを実行
+        if (onAudioCompleted) {
+          onAudioCompleted();
+        }
+      })
+      .catch((error) => {
+        this.logger.error(`Async audio generation failed: ${error.message}`);
+        // エラーが発生した場合もコールバックを実行（タイマーを開始する）
+        if (onAudioCompleted) {
+          onAudioCompleted();
+        }
+      });
   }
 
   /**
