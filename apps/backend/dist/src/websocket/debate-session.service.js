@@ -119,15 +119,19 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 turnIndex,
                 side,
                 message,
-                duration: 30,
             });
             this.wsConnection.sendToSessionSide(sessionId, side, "turn:your_turn", {
                 turnIndex,
-                duration: 30,
                 message: "あなたの発話時間です",
             });
             await this.generateAndBroadcastAudioSync(sessionId, message);
             this.setTurnTimer(sessionId, turnIndex, side);
+            this.wsConnection.broadcastToSession(sessionId, "turn:countdown_started", {
+                sessionId,
+                turnIndex,
+                side,
+                duration: 30,
+            });
             this.logger.log(`Timer started for turn ${turnIndex} after audio completion in session ${sessionId}`);
             this.logger.log(`Started turn ${turnIndex} for ${side} side in session ${sessionId}`);
         }

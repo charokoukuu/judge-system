@@ -177,7 +177,6 @@ export class DebateSessionService {
         turnIndex,
         side,
         message,
-        duration: 30,
       });
 
       // 特定のサイドに発話開始を通知
@@ -192,6 +191,19 @@ export class DebateSessionService {
 
       // 音声再生完了後にタイマーを開始
       this.setTurnTimer(sessionId, turnIndex, side);
+
+      // カウントダウン開始をフロントエンドに通知
+      this.wsConnection.broadcastToSession(
+        sessionId,
+        "turn:countdown_started",
+        {
+          sessionId,
+          turnIndex,
+          side,
+          duration: 30,
+        }
+      );
+
       this.logger.log(
         `Timer started for turn ${turnIndex} after audio completion in session ${sessionId}`
       );

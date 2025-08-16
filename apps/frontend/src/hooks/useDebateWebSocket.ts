@@ -41,6 +41,12 @@ export const useDebateWebSocket = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // カウントダウン状態
+  const [countdownEvent, setCountdownEvent] = useState<{
+    duration: number;
+    timestamp: number;
+  } | null>(null);
 
   // 音声再生キュー
   const audioQueueRef = useRef<
@@ -285,6 +291,18 @@ export const useDebateWebSocket = () => {
       addMessage("あなたの発話時間です！", "system");
     });
 
+    // カウントダウン開始
+    socket.on("turn:countdown_started", (data: any) => {
+      console.log("Countdown started:", data);
+      addMessage(`カウントダウン開始 - ${data.duration}秒`, "system");
+      
+      // カウントダウンイベントを設定
+      setCountdownEvent({
+        duration: data.duration,
+        timestamp: Date.now(),
+      });
+    });
+
     // ターン終了
     socket.on("turn:time_up", (data: any) => {
       console.log("Time up:", data);
@@ -432,6 +450,7 @@ export const useDebateWebSocket = () => {
     messages,
     error,
     isLoading,
+    countdownEvent,
     createSession,
     joinSession,
     startSession,

@@ -13,7 +13,7 @@ export default function DebateScaleInterface() {
   const [isCountdownActive, setIsCountdownActive] = useState(false);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { isConnected, session, messages, error, createSession, startSession } =
+  const { isConnected, session, messages, error, countdownEvent, createSession, startSession } =
     useDebateWebSocket();
 
   // カウントダウン機能
@@ -69,18 +69,12 @@ export default function DebateScaleInterface() {
     }
   }, [messages]);
 
-  // セッション状態に応じてスコア更新とカウントダウン制御
+  // セッション状態に応じてスコア更新（カウントダウンは除去）
   useEffect(() => {
     if (session?.state?.includes("RIGHT")) {
       setCurrentScore(0.3); // 右に傾く
-      if (session.state.includes("TURN") || session.state.includes("FINAL")) {
-        startCountdown(30); // 30秒カウントダウン開始
-      }
     } else if (session?.state?.includes("LEFT")) {
       setCurrentScore(-0.3); // 左に傾く
-      if (session.state.includes("TURN") || session.state.includes("FINAL")) {
-        startCountdown(30); // 30秒カウントダウン開始
-      }
     } else if (
       session?.state?.includes("WRAPUP") ||
       session?.state?.includes("JUDGING")
@@ -92,6 +86,14 @@ export default function DebateScaleInterface() {
       stopCountdown(); // カウントダウン停止
     }
   }, [session?.state]);
+
+  // カウントダウンイベントに基づいてカウントダウン開始
+  useEffect(() => {
+    if (countdownEvent) {
+      console.log("Starting countdown from event:", countdownEvent);
+      startCountdown(countdownEvent.duration);
+    }
+  }, [countdownEvent]);
 
   // セッションが作成されたら自動的に開始状態に
   useEffect(() => {
