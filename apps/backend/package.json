@@ -10,7 +10,15 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "lint": "eslint '{src,apps,libs,test}/**/*.ts' --fix"
+    "lint": "eslint '{src,apps,libs,test}/**/*.ts' --fix",
+    "swagger:codegen": "pnpx openapi-typescript-codegen --input ../doc/api/swagger.yaml --output src/generated",
+    "prisma:codegen": "pnpx prisma generate",
+    "prisma:migrate": "pnpx prisma migrate dev",
+    "prisma:migrate:prod": "pnpx prisma migrate deploy",
+    "prisma:migrate:reset": "pnpx prisma migrate reset --force",
+    "prisma:studio": "pnpx prisma studio",
+    "prisma:seed": "ts-node prisma/seed.ts",
+    "prisma:format": "pnpx prisma format"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
