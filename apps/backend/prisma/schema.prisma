@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,75 +7,132 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// 固定仕様（アプリ側で担保）
+// - ターン数: 3 固定（turnIndex: 1..3）
+// - 発話時間: 30秒固定（DBに保存しない）
+
+// 発話する側
+enum Side {
+  RIGHT // 右
+  LEFT // 左
+}
+
+// 進行フロー図に対応した状態一覧
+enum SessionState {
+  // 初期：未開始
+  IDLE
+
+  // READY：テーマ提示、「3ターン・30秒」案内
+  READY
+
+  // ---- TURN 1 ----
+  TURN1_RIGHT // 右の者、どうぞ（30秒）
+  TURN1_LEFT // 左の者、どうぞ（30秒）
+  TURN1_WRAPUP // 第1ターンの要約・rate算出
+
+  // ---- TURN 2 ----
+  TURN2_RIGHT
+  TURN2_LEFT
+  TURN2_WRAPUP
+
+  // ---- FINAL（最終弁論）----
+  FINAL_RIGHT // 右の者、最終弁論
+  FINAL_LEFT // 左の者、最終弁論
+  FINAL_WRAPUP // 最終まとめ（「全ての発言が出揃いました」）
+
+  // ---- JUDGE ----
+  JUDGING // 最終判定を実行中（過去rateも踏まえる）
+  VERDICT // 判定結果表示（勝者・講評）
+
+  // 完全終了
+  FINISHED
+}
+
+// 勝者（引き分け無し）
+
+enum Winner {
+  RIGHT
+  LEFT
+}
+
+// セッション本体
 model Session {
-  id        String      @id @default(cuid())
-  theme     String
-  maxTurns  Int
-  status    String      @default("CONFIGURING") // e.g., CONFIGURING, IN_PROGRESS, FINISHED
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  id    String       @id @default(cuid())
+  theme String
+  state SessionState @default(IDLE)
 
-  participants Participant[]
-  turns        Turn[]
-  verdict      Verdict?
-}
+  createdAt DateTime  @default(now())
+  endedAt   DateTime?
 
-model Participant {
-  id          String    @id @default(cuid())
-  name        String // "Right" or "Left"
-  sessionId   String
-  session     Session   @relation(fields: [sessionId], references: [id])
-
-  @@unique([sessionId, name])
-}
-
-model Turn {
-  id          String      @id @default(cuid())
-  turnNumber  Int
-  status      String      // e.g., SPEAKING, WRAPUP, JUDGING
-  speaker     String      // "Right", "Left", or "Moderator"
-  startTime   DateTime    @default(now())
-  endTime     DateTime?
-
-  sessionId   String
-  session     Session     @relation(fields: [sessionId], references: [id])
-
+  // 関連
   utterances  Utterance[]
-  scores      Score[]
+  verdict     Verdict?
+  turnResults TurnResult[]
+  AIResponse  AIResponse[]
 
-  @@unique([sessionId, turnNumber])
+  @@index([state])
+  @@index([createdAt])
 }
 
+// 発話（ASR確定テキストを保存）
 model Utterance {
-  id        String    @id @default(cuid())
-  text      String
-  isFinal   Boolean   @default(false) // true for final transcript, false for partial
-  timestamp DateTime  @default(now())
+  id        String  @id @default(cuid())
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
-  turnId    String
-  turn      Turn      @relation(fields: [turnId], references: [id])
+  side      Side
+  turnIndex Int // 1..3（アプリ側で検証）
+
+  text String // final（確定）テキスト
+
+  createdAt DateTime @default(now())
+
+  // 同ターン同サイドは1件のみ
+  @@unique([sessionId, turnIndex, side], name: "unique_utterance_per_side_per_turn")
+  @@index([sessionId, turnIndex])
 }
 
-model Score {
-  id                String  @id @default(cuid())
-  logic             Float
-  evidence          Float
-  rebuttal          Float
-  consistency       Float
-  clarity           Float
-  factuality        Float
+// 各ターンの優勢度（-1..+1）と軸別スコア（任意）
+model TurnResult {
+  id        String  @id @default(cuid())
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
-  turnId            String  @unique
-  turn              Turn    @relation(fields: [turnId], references: [id])
+  turnIndex  Int // 1..3
+  rate       Float // -1.0..+1.0（+は右有利、-は左有利）
+  scoresJson Json? // { LOGIC:{right:4,left:3}, ... }（任意）
+
+  createdAt DateTime @default(now())
+
+  @@unique([sessionId, turnIndex])
+  @@index([sessionId, turnIndex])
 }
+
+// 最終判定（勝者は必ず右 or 左）
 
 model Verdict {
-  id                String    @id @default(cuid())
-  winner            String // "Right", "Left", or "Draw"
-  summary           String
-  feedbackRight     String
-  feedbackLeft      String
+  id        String  @id @default(cuid())
+  sessionId String  @unique
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
-  sessionId         String    @unique
-  session           Session   @relation(fields: [sessionId], references: [id])
+  winner    Winner
+  rationale String // 講評（短文でOK）
+
+  createdAt DateTime @default(now())
+}
+
+model AIResponse {
+  id        String  @id @default(cuid())
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  turnIndex Int
+
+  // 字幕/TTSに使う本文
+  text String
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, createdAt])
+  @@index([sessionId, turnIndex])
 }
