@@ -4,6 +4,7 @@ import { DebateGateway } from "./debate/debate.gateway";
 import { OpenaiService } from "./openai/openai.service";
 import { StylebartService } from "./stylebart/stylebart.service";
 import { RepositoriesModule } from "./repositories/repositories.module";
+import { WebSocketModule } from "./websocket/websocket.module";
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { RepositoriesModule } from "./repositories/repositories.module";
       envFilePath: ".env",
     }),
     RepositoriesModule,
+    WebSocketModule,
   ],
   controllers: [], // No REST controllers for now
   providers: [DebateGateway, OpenaiService, StylebartService],
