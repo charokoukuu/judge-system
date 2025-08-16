@@ -365,4 +365,30 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handlePing(@ConnectedSocket() client: Socket): void {
     client.emit("pong", { timestamp: new Date().toISOString() });
   }
+
+  @SubscribeMessage("audio:playback_completed")
+  handleAudioPlaybackCompleted(
+    @MessageBody()
+    payload: {
+      sessionId: string;
+      text: string;
+      error?: boolean;
+      noAudio?: boolean;
+    },
+    @ConnectedSocket() client: Socket
+  ): void {
+    this.logger.log(
+      `Audio playback completed for session: ${payload.sessionId}`
+    );
+
+    // DebateSessionServiceに音声再生完了を通知
+    this.debateSession.onAudioPlaybackCompleted(
+      payload.sessionId,
+      payload.text,
+      {
+        error: payload.error,
+        noAudio: payload.noAudio,
+      }
+    );
+  }
 }

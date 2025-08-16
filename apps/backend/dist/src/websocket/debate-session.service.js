@@ -29,6 +29,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         this.stylebartService = stylebartService;
         this.logger = new common_1.Logger(DebateSessionService_1.name);
         this.activeTurnTimers = new Map();
+        this.pendingAudioPlaybacks = new Map();
     }
     async createSession(config) {
         try {
@@ -66,11 +67,11 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 theme: session.theme,
                 message: startMessage,
             });
-            await this.generateAndBroadcastAudio(sessionId, startMessage);
+            this.generateAndBroadcastAudioAsync(sessionId, startMessage);
             this.logger.log(`Session ${sessionId} started`);
             setTimeout(() => {
                 this.startTurn(sessionId, 1, client_1.Side.RIGHT);
-            }, 3000);
+            }, 2000);
         }
         catch (error) {
             this.logger.error(`Failed to start session ${sessionId}: ${error.message}`);
@@ -125,8 +126,8 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 duration: 30,
                 message: "あなたの発話時間です",
             });
-            await this.generateAndBroadcastAudio(sessionId, message);
             this.setTurnTimer(sessionId, turnIndex, side);
+            this.generateAndBroadcastAudioAsync(sessionId, message);
             this.logger.log(`Started turn ${turnIndex} for ${side} side in session ${sessionId}`);
         }
         catch (error) {
@@ -523,6 +524,98 @@ ${turnResults.join("\n")}
                 audioType: null,
                 error: "Audio generation failed",
             });
+        }
+    }
+    onAudioPlaybackCompleted(sessionId, text, options = {}) {
+        this.logger.log(`Audio playback completed for session ${sessionId}: "${text}"`);
+        const pendingKey = `${sessionId}-${text}`;
+        const pending = this.pendingAudioPlaybacks.get(pendingKey);
+        if (pending) {
+            if (pending.timeout) {
+                clearTimeout(pending.timeout);
+            }
+            pending.callback();
+            this.pendingAudioPlaybacks.delete(pendingKey);
+            this.logger.log(`Executed pending callback for: "${text}"`);
+        }
+        else {
+            this.logger.warn(`No pending callback found for: "${text}"`);
+        }
+    }
+    async generateAndBroadcastAudioSync(sessionId, text) {
+        try {
+            this.logger.log(`Generating audio for text: "${text}"`);
+            const audioBuffer = await this.stylebartService.textToSpeech(text);
+            if (audioBuffer) {
+                const audioBase64 = audioBuffer.toString("base64");
+                return new Promise((resolve) => {
+                    const pendingKey = `${sessionId}-${text}`;
+                    const timeout = setTimeout(() => {
+                        this.logger.warn(`Audio playback timeout for: "${text}"`);
+                        this.pendingAudioPlaybacks.delete(pendingKey);
+                        resolve();
+                    }, 10000);
+                    this.pendingAudioPlaybacks.set(pendingKey, {
+                        sessionId,
+                        text,
+                        callback: resolve,
+                        timeout,
+                    });
+                    this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
+                        sessionId,
+                        text,
+                        audioData: audioBase64,
+                        audioType: "audio/wav",
+                    });
+                    this.logger.log(`Audio generated and broadcasted for session ${sessionId}, waiting for playback completion`);
+                });
+            }
+            else {
+                this.logger.log(`TTS API unavailable, sending text only for session ${sessionId}`);
+                this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
+                    sessionId,
+                    text,
+                    audioData: null,
+                    audioType: null,
+                    textOnly: true,
+                });
+                await new Promise((resolve) => setTimeout(resolve, 1000));
+            }
+        }
+        catch (error) {
+            this.logger.error(`Failed to generate audio: ${error.message}`);
+            this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
+                sessionId,
+                text,
+                audioData: null,
+                audioType: null,
+                error: "Audio generation failed",
+            });
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+    }
+    generateAndBroadcastAudioAsync(sessionId, text) {
+        this.generateAndBroadcastAudio(sessionId, text).catch((error) => {
+            this.logger.error(`Async audio generation failed: ${error.message}`);
+        });
+    }
+    async preloadCommonAudioMessages() {
+        const commonMessages = [
+            "ディベートを開始します。",
+            "第1ターン、右の者、どうぞ。30秒でお話してください。",
+            "第1ターン、左の者、どうぞ。30秒でお話してください。",
+            "時間終了です。",
+            "ターンが終了しました。",
+            "判定中です。しばらくお待ちください。",
+        ];
+        for (const message of commonMessages) {
+            try {
+                await this.stylebartService.textToSpeech(message);
+                this.logger.log(`Preloaded audio for: "${message}"`);
+            }
+            catch (error) {
+                this.logger.warn(`Failed to preload audio for: "${message}"`);
+            }
         }
     }
 };

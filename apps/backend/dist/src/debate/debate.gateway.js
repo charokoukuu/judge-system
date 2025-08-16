@@ -230,6 +230,13 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
     handlePing(client) {
         client.emit("pong", { timestamp: new Date().toISOString() });
     }
+    handleAudioPlaybackCompleted(payload, client) {
+        this.logger.log(`Audio playback completed for session: ${payload.sessionId}`);
+        this.debateSession.onAudioPlaybackCompleted(payload.sessionId, payload.text, {
+            error: payload.error,
+            noAudio: payload.noAudio,
+        });
+    }
 };
 exports.DebateGateway = DebateGateway;
 __decorate([
@@ -307,6 +314,14 @@ __decorate([
     __metadata("design:paramtypes", [socket_io_1.Socket]),
     __metadata("design:returntype", void 0)
 ], DebateGateway.prototype, "handlePing", null);
+__decorate([
+    (0, websockets_1.SubscribeMessage)("audio:playback_completed"),
+    __param(0, (0, websockets_1.MessageBody)()),
+    __param(1, (0, websockets_1.ConnectedSocket)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, socket_io_1.Socket]),
+    __metadata("design:returntype", void 0)
+], DebateGateway.prototype, "handleAudioPlaybackCompleted", null);
 exports.DebateGateway = DebateGateway = DebateGateway_1 = __decorate([
     (0, websockets_1.WebSocketGateway)({
         cors: {

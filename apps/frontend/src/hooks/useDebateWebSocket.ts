@@ -42,6 +42,125 @@ export const useDebateWebSocket = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // 音声再生キュー
+  const audioQueueRef = useRef<
+    Array<{
+      sessionId: string;
+      text: string;
+      audioData?: string;
+      audioType?: string;
+    }>
+  >([]);
+  const isPlayingAudioRef = useRef(false);
+
+  const addMessage = useCallback(
+    (text: string, type: Message["type"], side?: "RIGHT" | "LEFT") => {
+      const message: Message = {
+        id: Date.now().toString(),
+        text,
+        timestamp: new Date(),
+        type,
+        side,
+      };
+      setMessages((prev) => [...prev, message]);
+    },
+    []
+  );
+
+  // 音声キューを処理する関数
+  const processAudioQueue = useCallback(() => {
+    if (isPlayingAudioRef.current || audioQueueRef.current.length === 0) {
+      return;
+    }
+
+    const audioItem = audioQueueRef.current.shift();
+    if (!audioItem) return;
+
+    isPlayingAudioRef.current = true;
+
+    // 即座にテキストを表示（音声再生と並行）
+    if (audioItem.text) {
+      addMessage(audioItem.text, "moderator");
+    }
+
+    if (audioItem.audioData && audioItem.audioType) {
+      try {
+        // Base64音声データをBlob化
+        const audioBytes = atob(audioItem.audioData);
+        const audioArray = new Uint8Array(audioBytes.length);
+        for (let i = 0; i < audioBytes.length; i++) {
+          audioArray[i] = audioBytes.charCodeAt(i);
+        }
+
+        const audioBlob = new Blob([audioArray], { type: audioItem.audioType });
+        const audioUrl = URL.createObjectURL(audioBlob);
+
+        const audio = new Audio(audioUrl);
+
+        const onEnded = () => {
+          console.log("Audio playback completed");
+          isPlayingAudioRef.current = false;
+
+          // バックエンドに音声再生完了を通知
+          socketRef.current?.emit("audio:playback_completed", {
+            sessionId: audioItem.sessionId,
+            text: audioItem.text,
+          });
+
+          URL.revokeObjectURL(audioUrl);
+
+          // 次の音声を処理
+          setTimeout(() => processAudioQueue(), 100);
+        };
+
+        const onError = () => {
+          console.error("Audio playback error");
+          isPlayingAudioRef.current = false;
+
+          socketRef.current?.emit("audio:playback_completed", {
+            sessionId: audioItem.sessionId,
+            text: audioItem.text,
+            error: true,
+          });
+
+          URL.revokeObjectURL(audioUrl);
+
+          // 次の音声を処理
+          setTimeout(() => processAudioQueue(), 100);
+        };
+
+        audio.addEventListener("ended", onEnded);
+        audio.addEventListener("error", onError);
+
+        audio.play().catch(onError);
+      } catch (error) {
+        console.error("Failed to process audio data:", error);
+        isPlayingAudioRef.current = false;
+
+        socketRef.current?.emit("audio:playback_completed", {
+          sessionId: audioItem.sessionId,
+          text: audioItem.text,
+          error: true,
+        });
+
+        // 次の音声を処理
+        setTimeout(() => processAudioQueue(), 100);
+      }
+    } else {
+      // 音声データがない場合
+      isPlayingAudioRef.current = false;
+
+      socketRef.current?.emit("audio:playback_completed", {
+        sessionId: audioItem.sessionId,
+        text: audioItem.text,
+        noAudio: true,
+      });
+
+      // 次の音声を処理
+      setTimeout(() => processAudioQueue(), 100);
+    }
+  }, [addMessage]);
+
   useEffect(() => {
     if (socketRef.current) return;
 
@@ -190,46 +309,16 @@ export const useDebateWebSocket = () => {
     socket.on("audio:generated", (data: any) => {
       console.log("Audio generated:", data);
 
-      // テキストをメッセージに追加
-      if (data.text) {
-        addMessage(data.text, "moderator");
-      }
+      // 音声をキューに追加
+      audioQueueRef.current.push({
+        sessionId: data.sessionId,
+        text: data.text,
+        audioData: data.audioData,
+        audioType: data.audioType,
+      });
 
-      // 音声データがある場合は再生
-      if (data.audioData && data.audioType) {
-        try {
-          // Base64音声データをBlob化
-          const audioBytes = atob(data.audioData);
-          const audioArray = new Uint8Array(audioBytes.length);
-          for (let i = 0; i < audioBytes.length; i++) {
-            audioArray[i] = audioBytes.charCodeAt(i);
-          }
-
-          const audioBlob = new Blob([audioArray], { type: data.audioType });
-          const audioUrl = URL.createObjectURL(audioBlob);
-
-          // 音声再生
-          const audio = new Audio(audioUrl);
-          audio
-            .play()
-            .then(() => {
-              console.log("Audio playback started");
-            })
-            .catch((err) => {
-              console.error("Audio playback failed:", err);
-            })
-            .finally(() => {
-              // メモリリークを防ぐためにURLを解放
-              setTimeout(() => URL.revokeObjectURL(audioUrl), 1000);
-            });
-        } catch (error) {
-          console.error("Failed to process audio data:", error);
-        }
-      } else if (data.textOnly) {
-        console.log("Text-only message (TTS unavailable)");
-      } else if (data.error) {
-        console.warn("Audio generation failed:", data.error);
-      }
+      // キューの処理を開始
+      processAudioQueue();
     });
 
     // 判定開始
@@ -269,20 +358,6 @@ export const useDebateWebSocket = () => {
       socketRef.current = null;
     };
   }, []);
-
-  const addMessage = useCallback(
-    (text: string, type: Message["type"], side?: "RIGHT" | "LEFT") => {
-      const message: Message = {
-        id: Date.now().toString(),
-        text,
-        timestamp: new Date(),
-        type,
-        side,
-      };
-      setMessages((prev) => [...prev, message]);
-    },
-    []
-  );
 
   const createSession = useCallback((theme: string) => {
     if (!socketRef.current?.connected) {

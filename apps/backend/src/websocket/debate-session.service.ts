@@ -29,6 +29,15 @@ export interface TurnTimer {
 export class DebateSessionService {
   private readonly logger = new Logger(DebateSessionService.name);
   private readonly activeTurnTimers = new Map<string, TurnTimer>();
+  private readonly pendingAudioPlaybacks = new Map<
+    string,
+    {
+      sessionId: string;
+      text: string;
+      callback: () => void;
+      timeout: NodeJS.Timeout;
+    }
+  >();
 
   constructor(
     private readonly wsConnection: WebSocketConnectionService,
@@ -97,15 +106,15 @@ export class DebateSessionService {
         message: startMessage,
       });
 
-      // TTSでアナウンス音声を生成・配信
-      await this.generateAndBroadcastAudio(sessionId, startMessage);
+      // TTSでアナウンス音声を生成・配信（並行実行）
+      this.generateAndBroadcastAudioAsync(sessionId, startMessage);
 
       this.logger.log(`Session ${sessionId} started`);
 
-      // 少し待ってから第1ターンを開始
+      // 少し待ってから第1ターンを開始（音声生成を待たない）
       setTimeout(() => {
         this.startTurn(sessionId, 1, Side.RIGHT);
-      }, 3000);
+      }, 2000); // 2秒に短縮
     } catch (error) {
       this.logger.error(
         `Failed to start session ${sessionId}: ${error.message}`
@@ -178,11 +187,11 @@ export class DebateSessionService {
         message: "あなたの発話時間です",
       });
 
-      // TTSでアナウンス
-      await this.generateAndBroadcastAudio(sessionId, message);
-
-      // 30秒タイマーを設定
+      // 30秒タイマーを即座に設定（音声生成を待たない）
       this.setTurnTimer(sessionId, turnIndex, side);
+
+      // TTSでアナウンス（並行実行）
+      this.generateAndBroadcastAudioAsync(sessionId, message);
 
       this.logger.log(
         `Started turn ${turnIndex} for ${side} side in session ${sessionId}`
@@ -746,6 +755,159 @@ ${turnResults.join("\n")}
         audioType: null,
         error: "Audio generation failed",
       });
+    }
+  }
+
+  /**
+   * 音声再生完了を処理
+   */
+  onAudioPlaybackCompleted(
+    sessionId: string,
+    text: string,
+    options: { error?: boolean; noAudio?: boolean } = {}
+  ): void {
+    this.logger.log(
+      `Audio playback completed for session ${sessionId}: "${text}"`
+    );
+
+    // 待機中の音声コールバックを探して実行
+    const pendingKey = `${sessionId}-${text}`;
+    const pending = this.pendingAudioPlaybacks.get(pendingKey);
+
+    if (pending) {
+      // タイムアウトをクリア
+      if (pending.timeout) {
+        clearTimeout(pending.timeout);
+      }
+
+      // コールバックを実行
+      pending.callback();
+
+      // 待機リストから削除
+      this.pendingAudioPlaybacks.delete(pendingKey);
+
+      this.logger.log(`Executed pending callback for: "${text}"`);
+    } else {
+      this.logger.warn(`No pending callback found for: "${text}"`);
+    }
+  }
+
+  /**
+   * 音声を生成し、再生完了を待つ
+   */
+  private async generateAndBroadcastAudioSync(
+    sessionId: string,
+    text: string
+  ): Promise<void> {
+    try {
+      this.logger.log(`Generating audio for text: "${text}"`);
+
+      // Style-BART APIを使用して音声を生成
+      const audioBuffer = await this.stylebartService.textToSpeech(text);
+
+      if (audioBuffer) {
+        // 音声データをBase64エンコード
+        const audioBase64 = audioBuffer.toString("base64");
+
+        // 再生完了を待つためのPromiseを作成
+        return new Promise<void>((resolve) => {
+          const pendingKey = `${sessionId}-${text}`;
+
+          // 10秒後にタイムアウト（音声が長すぎる場合の保護）
+          const timeout = setTimeout(() => {
+            this.logger.warn(`Audio playback timeout for: "${text}"`);
+            this.pendingAudioPlaybacks.delete(pendingKey);
+            resolve();
+          }, 10000);
+
+          // 待機中のコールバックを登録
+          this.pendingAudioPlaybacks.set(pendingKey, {
+            sessionId,
+            text,
+            callback: resolve,
+            timeout,
+          });
+
+          // 音声データを送信
+          this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
+            sessionId,
+            text,
+            audioData: audioBase64,
+            audioType: "audio/wav",
+          });
+
+          this.logger.log(
+            `Audio generated and broadcasted for session ${sessionId}, waiting for playback completion`
+          );
+        });
+      } else {
+        // TTS APIが利用できない場合はテキストのみ送信
+        this.logger.log(
+          `TTS API unavailable, sending text only for session ${sessionId}`
+        );
+
+        this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
+          sessionId,
+          text,
+          audioData: null,
+          audioType: null,
+          textOnly: true,
+        });
+
+        // 短い待機時間を設ける（テキスト読み込み時間）
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    } catch (error) {
+      this.logger.error(`Failed to generate audio: ${error.message}`);
+
+      // エラーの場合はテキストのみ送信
+      this.wsConnection.broadcastToSession(sessionId, "audio:generated", {
+        sessionId,
+        text,
+        audioData: null,
+        audioType: null,
+        error: "Audio generation failed",
+      });
+
+      // 短い待機時間を設ける
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
+  /**
+   * 音声を生成してブロードキャスト（非同期・ノンブロッキング）
+   */
+  private generateAndBroadcastAudioAsync(
+    sessionId: string,
+    text: string
+  ): void {
+    // 非同期で音声生成を実行（呼び出し元をブロックしない）
+    this.generateAndBroadcastAudio(sessionId, text).catch((error) => {
+      this.logger.error(`Async audio generation failed: ${error.message}`);
+    });
+  }
+
+  /**
+   * 複数のメッセージを事前生成（プリロード）
+   */
+  async preloadCommonAudioMessages(): Promise<void> {
+    const commonMessages = [
+      "ディベートを開始します。",
+      "第1ターン、右の者、どうぞ。30秒でお話してください。",
+      "第1ターン、左の者、どうぞ。30秒でお話してください。",
+      "時間終了です。",
+      "ターンが終了しました。",
+      "判定中です。しばらくお待ちください。",
+    ];
+
+    // バックグラウンドで事前生成（エラーは無視）
+    for (const message of commonMessages) {
+      try {
+        await this.stylebartService.textToSpeech(message);
+        this.logger.log(`Preloaded audio for: "${message}"`);
+      } catch (error) {
+        this.logger.warn(`Failed to preload audio for: "${message}"`);
+      }
     }
   }
 }

@@ -29,4 +29,10 @@ export declare class DebateGateway implements OnGatewayConnection, OnGatewayDisc
         sessionId: string;
     }, client: Socket): void;
     handlePing(client: Socket): void;
+    handleAudioPlaybackCompleted(payload: {
+        sessionId: string;
+        text: string;
+        error?: boolean;
+        noAudio?: boolean;
+    }, client: Socket): void;
 }

@@ -26,6 +26,7 @@ export declare class DebateSessionService {
     private readonly stylebartService;
     private readonly logger;
     private readonly activeTurnTimers;
+    private readonly pendingAudioPlaybacks;
     constructor(wsConnection: WebSocketConnectionService, sessionRepository: SessionRepository, utteranceRepository: UtteranceRepository, turnResultRepository: TurnResultRepository, verdictRepository: VerdictRepository, aiResponseRepository: AIResponseRepository, openaiService: OpenaiService, stylebartService: StylebartService);
     createSession(config: DebateSessionConfig): Promise<string>;
     startSession(sessionId: string): Promise<void>;
@@ -42,4 +43,11 @@ export declare class DebateSessionService {
     private evaluateTurn;
     private performFinalJudgment;
     private generateAndBroadcastAudio;
+    onAudioPlaybackCompleted(sessionId: string, text: string, options?: {
+        error?: boolean;
+        noAudio?: boolean;
+    }): void;
+    private generateAndBroadcastAudioSync;
+    private generateAndBroadcastAudioAsync;
+    preloadCommonAudioMessages(): Promise<void>;
 }
