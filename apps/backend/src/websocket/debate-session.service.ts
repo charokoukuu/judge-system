@@ -88,9 +88,43 @@ export class DebateSessionService {
       // セッション状態をREADYに更新
       await this.sessionRepository.updateState(sessionId, SessionState.READY);
       this.wsConnection.updateSessionState(sessionId, SessionState.READY);
+      const systemPrompt = `
+あなたは与えられたテーマ文を読み取り、それを議論可能な2つの立場に分けてください。  
+必ずJSON形式で返してください。説明や文章は不要です。  
+
+出力形式:
+{
+  "right": "立場1",
+  "left": "立場2"
+}
+
+例1:  
+テーマ: 「ずんだもんは人間か動物か」  
+出力: {"right": "人間", "left": "動物"}
+
+例2:  
+テーマ: 「AIの規制は必要か」  
+出力: {"right": "賛成", "left": "反対"}
+
+例3:  
+テーマ: 「VRは現実を超えるか」  
+出力: {"right": "VR", "left": "現実"}
+
+次のテーマについて出力してください。
+`;
+
+      const result = JSON.parse(
+        await this.openaiService.chatCompletion(
+          [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: session.theme },
+          ],
+          "gpt-4o-mini"
+        )
+      );
 
       // 開始アナウンスを作成
-      const startMessage = `ディベートを開始します。テーマは「${session.theme}」です。3ターン、各10秒で進行します。右が賛成、左が反対の立場で行います。先行は右側です。`;
+      const startMessage = `ディベートを開始します。テーマは「${session.theme}」です。3ターン、各10秒で進行します。右が${result.right}、左が${result.left}の立場で行います。先行は右側です。`;
 
       // AIアナウンスを保存
       await this.aiResponseRepository.create({
