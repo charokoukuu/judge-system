@@ -147,7 +147,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         this.clearTurnTimer(sessionId);
         const timeoutId = setTimeout(() => {
             this.endTurn(sessionId, turnIndex, side);
-        }, 10000);
+        }, 30000);
         const timer = {
             sessionId,
             turnIndex,

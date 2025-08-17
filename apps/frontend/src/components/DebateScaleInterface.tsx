@@ -151,36 +151,71 @@ export default function DebateScaleInterface() {
 
   // カウントダウンイベントに基づいてカウントダウン開始と自動録音
   useEffect(() => {
+    console.log("[DEBUG] カウントダウンイベント処理:", {
+      countdownEvent: !!countdownEvent,
+      isCountdownActive,
+      isRecordingAudio,
+      lastProcessedTimestamp,
+      currentTimestamp: countdownEvent?.timestamp,
+    });
+
     if (
       countdownEvent &&
       !isCountdownActive &&
-      !isRecordingAudio &&
       countdownEvent.timestamp !== lastProcessedTimestamp
     ) {
       console.log("Starting countdown from event:", countdownEvent);
       setLastProcessedTimestamp(countdownEvent.timestamp);
       startCountdown(countdownEvent.duration);
 
-      // カウントダウン開始と同時に録音を自動開始
-      console.log("Auto-starting recording due to countdown start");
-      startRecording();
+      // 既に録音中の場合は一度停止してから再開
+      if (isRecordingAudio) {
+        console.log("Stopping previous recording before starting new one");
+        stopRecording();
+        // 少し待ってから新しい録音を開始
+        setTimeout(() => {
+          console.log(
+            "Auto-starting recording due to countdown start (after previous stop)"
+          );
+          startRecording();
+        }, 100);
+      } else {
+        // カウントダウン開始と同時に録音を自動開始
+        console.log("Auto-starting recording due to countdown start");
+        startRecording();
+      }
     } else if (countdownEvent?.timestamp === lastProcessedTimestamp) {
       console.log(
         "Skipping duplicate countdown event:",
         countdownEvent.timestamp
       );
+    } else if (countdownEvent) {
+      console.log("[DEBUG] カウントダウン開始条件不満足:", {
+        hasEvent: !!countdownEvent,
+        isCountdownActive,
+        isRecordingAudio,
+        timestampMismatch: countdownEvent.timestamp !== lastProcessedTimestamp,
+      });
     }
   }, [
     countdownEvent,
     isCountdownActive,
-    isRecordingAudio,
     lastProcessedTimestamp,
     startCountdown,
     startRecording,
+    stopRecording,
+    isRecordingAudio,
   ]);
 
   // 録音停止イベントに基づく自動録音停止
   useEffect(() => {
+    console.log("[DEBUG] 録音停止イベント処理:", {
+      recordingStopEvent: !!recordingStopEvent,
+      isRecordingAudio,
+      lastStopEventTimestamp,
+      currentStopTimestamp: recordingStopEvent?.timestamp,
+    });
+
     if (
       recordingStopEvent &&
       isRecordingAudio &&
