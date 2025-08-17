@@ -576,8 +576,9 @@ export class DebateSessionService {
       });
 
       // セッション終了
-      await timer(2000);
-      this.finishSession(sessionId);
+      await timer(3000);
+      await judgeTrigger("0");
+      await this.finishSession(sessionId);
     } catch (error) {
       this.logger.error(`Failed to announce verdict: ${error.message}`);
     }

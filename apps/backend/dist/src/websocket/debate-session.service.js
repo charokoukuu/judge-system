@@ -382,8 +382,9 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 await (0, timer_1.timer)(2000);
                 await (0, judge_trigger_1.judgeTrigger)(winner === client_1.Side.RIGHT ? "35" : "-35");
             });
-            await (0, timer_1.timer)(2000);
-            this.finishSession(sessionId);
+            await (0, timer_1.timer)(3000);
+            await (0, judge_trigger_1.judgeTrigger)("0");
+            await this.finishSession(sessionId);
         }
         catch (error) {
             this.logger.error(`Failed to announce verdict: ${error.message}`);
