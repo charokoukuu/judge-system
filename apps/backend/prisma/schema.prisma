@@ -9,7 +9,7 @@ datasource db {
 
 // 固定仕様（アプリ側で担保）
 // - ターン数: 3 固定（turnIndex: 1..3）
-// - 発話時間: 30秒固定（DBに保存しない）
+// - 発話時間: 10秒固定（DBに保存しない）
 
 // 発話する側
 enum Side {
@@ -22,12 +22,12 @@ enum SessionState {
   // 初期：未開始
   IDLE
 
-  // READY：テーマ提示、「3ターン・30秒」案内
+  // READY：テーマ提示、「3ターン・10秒」案内
   READY
 
   // ---- TURN 1 ----
-  TURN1_RIGHT // 右の者、どうぞ（30秒）
-  TURN1_LEFT // 左の者、どうぞ（30秒）
+  TURN1_RIGHT // 右の者、どうぞ（10秒）
+  TURN1_LEFT // 左の者、どうぞ（10秒）
   TURN1_WRAPUP // 第1ターンの要約・rate算出
 
   // ---- TURN 2 ----

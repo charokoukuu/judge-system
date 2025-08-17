@@ -56,7 +56,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             }
             await this.sessionRepository.updateState(sessionId, client_1.SessionState.READY);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.READY);
-            const startMessage = `ディベートを開始します。テーマは「${session.theme}」です。3ターン、各30秒で進行します。右が賛成、左が反対の立場で行います。先行は右側です。`;
+            const startMessage = `ディベートを開始します。テーマは「${session.theme}」です。3ターン、各10秒で進行します。右が賛成、左が反対の立場で行います。先行は右側です。`;
             await this.aiResponseRepository.create({
                 sessionId,
                 turnIndex: 0,
@@ -108,7 +108,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             this.wsConnection.updateSessionState(sessionId, newState);
             const sideText = side === client_1.Side.RIGHT ? "右" : "左";
             const turnText = turnIndex === 3 ? "最終弁論" : `第${turnIndex}ターン`;
-            const message = `${turnText}、${sideText}の者、どうぞ。30秒でお話してください。`;
+            const message = `${turnText}、${sideText}の者、どうぞ。10秒でお話してください。`;
             await this.aiResponseRepository.create({
                 sessionId,
                 turnIndex,
@@ -641,8 +641,8 @@ ${turnResults.join("\n")}
     async preloadCommonAudioMessages() {
         const commonMessages = [
             "ディベートを開始します。",
-            "第1ターン、右の者、どうぞ。30秒でお話してください。",
-            "第1ターン、左の者、どうぞ。30秒でお話してください。",
+            "第1ターン、右の者、どうぞ。10秒でお話してください。",
+            "第1ターン、左の者、どうぞ。10秒でお話してください。",
             "時間終了です。",
             "ターンが終了しました。",
             "判定中です。しばらくお待ちください。",
