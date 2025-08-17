@@ -14,6 +14,9 @@ export default function DebateScaleInterface() {
   const [lastProcessedTimestamp, setLastProcessedTimestamp] = useState<
     number | null
   >(null);
+  const [lastStopEventTimestamp, setLastStopEventTimestamp] = useState<
+    number | null
+  >(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
@@ -22,6 +25,7 @@ export default function DebateScaleInterface() {
     messages,
     error,
     countdownEvent,
+    recordingStopEvent,
     createSession,
     startSession,
     sendAudioStart,
@@ -127,7 +131,7 @@ export default function DebateScaleInterface() {
     }
   }, [messages]);
 
-  // セッション状態に応じてスコア更新（カウントダウンは除去）
+  // セッション状態に応じてスコア更新（録音制御はカウントダウンに依存）
   useEffect(() => {
     if (session?.state?.includes("RIGHT")) {
       setCurrentScore(0.3); // 右に傾く
@@ -173,6 +177,32 @@ export default function DebateScaleInterface() {
     lastProcessedTimestamp,
     startCountdown,
     startRecording,
+  ]);
+
+  // 録音停止イベントに基づく自動録音停止
+  useEffect(() => {
+    if (
+      recordingStopEvent &&
+      isRecordingAudio &&
+      recordingStopEvent.timestamp !== lastStopEventTimestamp
+    ) {
+      console.log(
+        "Auto-stopping recording due to stop event:",
+        recordingStopEvent
+      );
+      setLastStopEventTimestamp(recordingStopEvent.timestamp);
+      stopRecording();
+    } else if (recordingStopEvent?.timestamp === lastStopEventTimestamp) {
+      console.log(
+        "Skipping duplicate recording stop event:",
+        recordingStopEvent?.timestamp
+      );
+    }
+  }, [
+    recordingStopEvent,
+    isRecordingAudio,
+    lastStopEventTimestamp,
+    stopRecording,
   ]);
 
   // セッションが作成されたら自動的に開始状態に

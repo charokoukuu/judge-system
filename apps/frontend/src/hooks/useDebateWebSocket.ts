@@ -48,6 +48,12 @@ export const useDebateWebSocket = () => {
     timestamp: number;
   } | null>(null);
 
+  // 録音停止イベント
+  const [recordingStopEvent, setRecordingStopEvent] = useState<{
+    reason: "time_up" | "turn_ended" | "manual";
+    timestamp: number;
+  } | null>(null);
+
   // 音声再生キュー
   const audioQueueRef = useRef<
     Array<{
@@ -310,6 +316,24 @@ export const useDebateWebSocket = () => {
     socket.on("turn:time_up", (data: any) => {
       console.log("Time up:", data);
       addMessage("時間終了です", "system");
+
+      // 録音停止イベントを発火
+      setRecordingStopEvent({
+        reason: "time_up",
+        timestamp: Date.now(),
+      });
+    });
+
+    // ターン終了イベント（バックエンドから送信される場合）
+    socket.on("turn:ended", (data: any) => {
+      console.log("Turn ended:", data);
+      addMessage(`ターン${data.turnIndex}が終了しました`, "system");
+
+      // 録音停止イベントを発火
+      setRecordingStopEvent({
+        reason: "turn_ended",
+        timestamp: Date.now(),
+      });
     });
 
     // 発話受信
@@ -488,6 +512,7 @@ export const useDebateWebSocket = () => {
     error,
     isLoading,
     countdownEvent,
+    recordingStopEvent,
     createSession,
     joinSession,
     startSession,
