@@ -7,10 +7,11 @@ import {
   VerdictRepository,
   AIResponseRepository,
 } from "../repositories";
-import { SessionState, Side, Winner } from "@prisma/client";
+import { SessionState, Side, Utterance, Winner } from "@prisma/client";
 import { OpenaiService } from "../openai/openai.service";
 import { StylebartService } from "../stylebart/stylebart.service";
 import { timer } from "src/util/timer";
+import { exampleUtterance } from "src/util/exampleMessage";
 
 export interface DebateSessionConfig {
   theme: string;
@@ -430,7 +431,12 @@ export class DebateSessionService {
       }
 
       // AIで評価を実行
-      const rate = await this.evaluateTurn(sessionId, turnIndex, utterances);
+      // DEBUG: 実際のメッセージに直す
+      const rate = await this.evaluateTurn(
+        sessionId,
+        turnIndex,
+        exampleUtterance(sessionId)
+      );
 
       // 評価結果を保存
       await this.turnResultRepository.upsertTurnResult({
@@ -438,6 +444,8 @@ export class DebateSessionService {
         turnIndex,
         rate,
       });
+
+      console.log("評価： ", rate);
 
       const message = `第${turnIndex}ターンの評価が完了しました。`;
 
@@ -721,7 +729,7 @@ ${leftText}
       }
 
       // 全ターンの発話を取得
-      const allUtterances = [];
+      let allUtterances = [];
       for (let turn = 1; turn <= 3; turn++) {
         const utterances = await this.utteranceRepository.findBySessionAndTurn(
           sessionId,
@@ -730,6 +738,8 @@ ${leftText}
         allUtterances.push(...utterances);
       }
 
+      // DEBUG: 後で消して定数にする
+      allUtterances = exampleUtterance(sessionId);
       // 右と左の発話を分類・整理
       const rightUtterances = allUtterances.filter(
         (u) => u.side === Side.RIGHT
