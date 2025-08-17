@@ -563,14 +563,14 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // セッション状態から現在のサイドを決定
   private getSideFromSessionState(state?: any): Side {
     if (!state) return Side.RIGHT; // デフォルトはRIGHT
-    
+
     const stateStr = state.toString();
     if (stateStr.includes("LEFT")) {
       return Side.LEFT;
     } else if (stateStr.includes("RIGHT")) {
       return Side.RIGHT;
     }
-    
+
     // 明確でない場合はRIGHTをデフォルト
     return Side.RIGHT;
   }

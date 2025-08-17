@@ -17,6 +17,7 @@ const repositories_1 = require("../repositories");
 const client_1 = require("@prisma/client");
 const openai_service_1 = require("../openai/openai.service");
 const stylebart_service_1 = require("../stylebart/stylebart.service");
+const timer_1 = require("../util/timer");
 let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
     constructor(wsConnection, sessionRepository, utteranceRepository, turnResultRepository, verdictRepository, aiResponseRepository, openaiService, stylebartService) {
         this.wsConnection = wsConnection;
@@ -204,14 +205,36 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 side,
             });
             if (side === client_1.Side.RIGHT) {
-                setTimeout(() => {
-                    this.startTurn(sessionId, turnIndex, client_1.Side.LEFT);
-                }, 2000);
+                let utterances = null;
+                while (!utterances) {
+                    utterances = await this.utteranceRepository.findBySessionTurnAndSide(sessionId, turnIndex, side);
+                    await (0, timer_1.timer)(300);
+                }
+                await this.wsConnection.broadcastToSession(sessionId, "turn:started", {
+                    sessionId,
+                    turnIndex,
+                    side,
+                    message: `内容: ${utterances.text}`,
+                });
+                await (0, timer_1.timer)(3000);
+                await this.startTurn(sessionId, turnIndex, client_1.Side.LEFT);
+                await (0, timer_1.timer)(2000);
             }
             else {
-                setTimeout(() => {
-                    this.wrapUpTurn(sessionId, turnIndex);
-                }, 2000);
+                let utterances = null;
+                while (!utterances) {
+                    utterances = await this.utteranceRepository.findBySessionTurnAndSide(sessionId, turnIndex, side);
+                    await (0, timer_1.timer)(300);
+                }
+                await this.wsConnection.broadcastToSession(sessionId, "turn:started", {
+                    sessionId,
+                    turnIndex,
+                    side,
+                    message: `内容: ${utterances.text}`,
+                });
+                await (0, timer_1.timer)(3000);
+                this.wrapUpTurn(sessionId, turnIndex);
+                await (0, timer_1.timer)(2000);
             }
             this.logger.log(`Ended turn ${turnIndex} for ${side} side in session ${sessionId}`);
         }

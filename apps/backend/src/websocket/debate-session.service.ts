@@ -10,6 +10,7 @@ import {
 import { SessionState, Side, Winner } from "@prisma/client";
 import { OpenaiService } from "../openai/openai.service";
 import { StylebartService } from "../stylebart/stylebart.service";
+import { timer } from "src/util/timer";
 
 export interface DebateSessionConfig {
   theme: string;
@@ -144,9 +145,7 @@ export class DebateSessionService {
       await this.generateAndBroadcastAudioSync(sessionId, startMessage);
 
       // 音声再生完了後に第1ターンを開始
-      // setTimeout(() => {
       await this.startTurn(sessionId, 1, Side.RIGHT);
-      // }, 4000); // 1秒の余裕を持って開始
 
       this.logger.log(`Session ${sessionId} started`);
     } catch (error) {
@@ -312,15 +311,49 @@ export class DebateSessionService {
 
       // 次の処理を決定
       if (side === Side.RIGHT) {
+        let utterances = null;
+
+        while (!utterances) {
+          utterances = await this.utteranceRepository.findBySessionTurnAndSide(
+            sessionId,
+            turnIndex,
+            side
+          );
+          await timer(300);
+        }
+
+        await this.wsConnection.broadcastToSession(sessionId, "turn:started", {
+          sessionId,
+          turnIndex,
+          side,
+          message: `内容: ${utterances.text}`,
+        });
+        await timer(3000);
         // 右が終わったら左のターン
-        setTimeout(() => {
-          this.startTurn(sessionId, turnIndex, Side.LEFT);
-        }, 2000);
+        await this.startTurn(sessionId, turnIndex, Side.LEFT);
+        await timer(2000);
       } else {
         // 左が終わったらターンの要約・評価
-        setTimeout(() => {
-          this.wrapUpTurn(sessionId, turnIndex);
-        }, 2000);
+        let utterances = null;
+
+        while (!utterances) {
+          utterances = await this.utteranceRepository.findBySessionTurnAndSide(
+            sessionId,
+            turnIndex,
+            side
+          );
+          await timer(300);
+        }
+
+        await this.wsConnection.broadcastToSession(sessionId, "turn:started", {
+          sessionId,
+          turnIndex,
+          side,
+          message: `内容: ${utterances.text}`,
+        });
+        await timer(3000);
+        this.wrapUpTurn(sessionId, turnIndex);
+        await timer(2000);
       }
 
       this.logger.log(
