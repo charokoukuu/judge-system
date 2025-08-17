@@ -96,9 +96,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 message: startMessage,
             });
             await this.generateAndBroadcastAudioSync(sessionId, startMessage);
-            setTimeout(() => {
-                this.startTurn(sessionId, 1, client_1.Side.RIGHT);
-            }, 4000);
+            await this.startTurn(sessionId, 1, client_1.Side.RIGHT);
             this.logger.log(`Session ${sessionId} started`);
         }
         catch (error) {
@@ -612,7 +610,7 @@ ${turnResults.join("\n")}
                         this.logger.warn(`Audio playback timeout for: "${text}"`);
                         this.pendingAudioPlaybacks.delete(pendingKey);
                         resolve();
-                    }, 10000);
+                    }, 50000);
                     this.pendingAudioPlaybacks.set(pendingKey, {
                         sessionId,
                         text,

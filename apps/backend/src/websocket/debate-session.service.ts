@@ -144,9 +144,9 @@ export class DebateSessionService {
       await this.generateAndBroadcastAudioSync(sessionId, startMessage);
 
       // 音声再生完了後に第1ターンを開始
-      setTimeout(() => {
-        this.startTurn(sessionId, 1, Side.RIGHT);
-      }, 4000); // 1秒の余裕を持って開始
+      // setTimeout(() => {
+      await this.startTurn(sessionId, 1, Side.RIGHT);
+      // }, 4000); // 1秒の余裕を持って開始
 
       this.logger.log(`Session ${sessionId} started`);
     } catch (error) {
@@ -907,12 +907,12 @@ ${turnResults.join("\n")}
         return new Promise<void>((resolve) => {
           const pendingKey = `${sessionId}-${text}`;
 
-          // 10秒後にタイムアウト（音声が長すぎる場合の保護）
+          // 50秒後にタイムアウト（音声が長すぎる場合の保護）
           const timeout = setTimeout(() => {
             this.logger.warn(`Audio playback timeout for: "${text}"`);
             this.pendingAudioPlaybacks.delete(pendingKey);
             resolve();
-          }, 10000);
+          }, 50000);
 
           // 待機中のコールバックを登録
           this.pendingAudioPlaybacks.set(pendingKey, {
