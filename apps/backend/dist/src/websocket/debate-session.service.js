@@ -131,7 +131,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 sessionId,
                 turnIndex,
                 side,
-                duration: 30,
+                duration: 10,
             });
             this.logger.log(`Timer started for turn ${turnIndex} after audio completion in session ${sessionId}`);
             this.logger.log(`Started turn ${turnIndex} for ${side} side in session ${sessionId}`);
@@ -147,7 +147,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         this.clearTurnTimer(sessionId);
         const timeoutId = setTimeout(() => {
             this.endTurn(sessionId, turnIndex, side);
-        }, 30000);
+        }, 10000);
         const timer = {
             sessionId,
             turnIndex,

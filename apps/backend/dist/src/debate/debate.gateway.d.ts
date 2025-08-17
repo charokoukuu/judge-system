@@ -38,4 +38,5 @@ export declare class DebateGateway implements OnGatewayConnection, OnGatewayDisc
     }, client: Socket): void;
     private clientSideMapping;
     private getEffectiveSideForClient;
+    private getSideFromSessionState;
 }

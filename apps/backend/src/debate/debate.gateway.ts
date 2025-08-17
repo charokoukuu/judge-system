@@ -343,14 +343,14 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       if (currentTurn > 0) {
         // 制約解除：誰でも発話をDB保存できるように
-        // participantSideがない場合は自動的にサイドを割り当て
+        // participantSideがない場合は現在のターン状態に基づいて自動的にサイドを割り当て
         let effectiveSide = clientData.participantSide;
 
         if (!effectiveSide) {
-          // クライアントIDベースで自動割り当て
-          effectiveSide = this.getEffectiveSideForClient(
-            client.id,
-            clientData.sessionId
+          // セッション状態に基づいてサイドを決定
+          effectiveSide = this.getSideFromSessionState(sessionRoom?.state);
+          this.logger.log(
+            `[自動サイド割り当て] セッション状態 ${sessionRoom?.state} から ${effectiveSide} を割り当て`
           );
         }
 
@@ -558,5 +558,20 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
     );
 
     return assignedSide;
+  }
+
+  // セッション状態から現在のサイドを決定
+  private getSideFromSessionState(state?: any): Side {
+    if (!state) return Side.RIGHT; // デフォルトはRIGHT
+    
+    const stateStr = state.toString();
+    if (stateStr.includes("LEFT")) {
+      return Side.LEFT;
+    } else if (stateStr.includes("RIGHT")) {
+      return Side.RIGHT;
+    }
+    
+    // 明確でない場合はRIGHTをデフォルト
+    return Side.RIGHT;
   }
 }

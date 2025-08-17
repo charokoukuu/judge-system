@@ -210,7 +210,8 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
             if (currentTurn > 0) {
                 let effectiveSide = clientData.participantSide;
                 if (!effectiveSide) {
-                    effectiveSide = this.getEffectiveSideForClient(client.id, clientData.sessionId);
+                    effectiveSide = this.getSideFromSessionState(sessionRoom?.state);
+                    this.logger.log(`[自動サイド割り当て] セッション状態 ${sessionRoom?.state} から ${effectiveSide} を割り当て`);
                 }
                 this.logger.log(`[STT→DB] クライアント ${client.id} (role: ${clientData.role}, side: ${effectiveSide}) の発話を記録開始: "${finalText}"`);
                 this.logger.log(`[DB保存前] processUtteranceパラメータ確認 - sessionId: ${clientData.sessionId}, turnIndex: ${currentTurn}, side: ${effectiveSide}, text: "${finalText}"`);
@@ -322,6 +323,18 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
         sessionMapping.set(clientId, assignedSide);
         this.logger.log(`[サイド自動割り当て] クライアント ${clientId} をセッション ${sessionId} の ${assignedSide} に割り当て (接続順: ${existingClients.length + 1})`);
         return assignedSide;
+    }
+    getSideFromSessionState(state) {
+        if (!state)
+            return client_1.Side.RIGHT;
+        const stateStr = state.toString();
+        if (stateStr.includes("LEFT")) {
+            return client_1.Side.LEFT;
+        }
+        else if (stateStr.includes("RIGHT")) {
+            return client_1.Side.RIGHT;
+        }
+        return client_1.Side.RIGHT;
     }
 };
 exports.DebateGateway = DebateGateway;

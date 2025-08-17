@@ -200,7 +200,7 @@ export class DebateSessionService {
           sessionId,
           turnIndex,
           side,
-          duration: 30,
+          duration: 10,
         }
       );
 
@@ -228,7 +228,7 @@ export class DebateSessionService {
 
     const timeoutId = setTimeout(() => {
       this.endTurn(sessionId, turnIndex, side);
-    }, 30000); // 30秒
+    }, 10000); // 30秒
 
     const timer: TurnTimer = {
       sessionId,
