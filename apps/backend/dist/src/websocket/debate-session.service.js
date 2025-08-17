@@ -147,7 +147,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         this.clearTurnTimer(sessionId);
         const timeoutId = setTimeout(() => {
             this.endTurn(sessionId, turnIndex, side);
-        }, 30000);
+        }, 10000);
         const timer = {
             sessionId,
             turnIndex,
@@ -333,13 +333,16 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         }
     }
     async processUtterance(sessionId, turnIndex, side, text) {
+        this.logger.log(`[DB処理開始] processUtterance呼び出し - sessionId: ${sessionId}, turnIndex: ${turnIndex}, side: ${side}, text: "${text}"`);
         try {
-            await this.utteranceRepository.upsertUtterance({
+            this.logger.log(`[DB実行中] upsertUtteranceを実行中...`);
+            const result = await this.utteranceRepository.upsertUtterance({
                 sessionId,
                 turnIndex,
                 side,
                 text,
             });
+            this.logger.log(`[DB保存成功] 発話ID: ${result.id}, セッション: ${sessionId}, ターン: ${turnIndex}, サイド: ${side}`);
             this.wsConnection.broadcastToSession(sessionId, "utterance:received", {
                 sessionId,
                 turnIndex,
@@ -350,7 +353,8 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             this.logger.log(`[STT] セッション ${sessionId}, ターン ${turnIndex}, ${sideText}側の発話をDBに保存: "${text}"`);
         }
         catch (error) {
-            this.logger.error(`Failed to process utterance: ${error.message}`);
+            this.logger.error(`[DB保存エラー] Failed to process utterance: ${error.message}`);
+            this.logger.error(`[DB保存エラー] Stack trace:`, error.stack);
         }
     }
     async evaluateTurn(sessionId, turnIndex, utterances) {

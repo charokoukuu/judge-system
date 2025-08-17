@@ -31,7 +31,7 @@ export default function LobbyPage() {
         theme: "リモートワークは生産性を向上させるか",
         state: "TURN1_RIGHT",
         participantCount: 3,
-        createdAt: new Date(Date.now() - 300000).toISOString(),
+        createdAt: new Date(Date.now() - 100000).toISOString(),
       },
     ];
     setActiveSessions(demoSessions);

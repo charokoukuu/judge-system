@@ -51,6 +51,27 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   handleDisconnect(client: Socket) {
+    // クライアントサイドマッピングをクリーンアップ
+    for (const [
+      sessionId,
+      sessionMapping,
+    ] of this.clientSideMapping.entries()) {
+      if (sessionMapping.has(client.id)) {
+        sessionMapping.delete(client.id);
+        this.logger.log(
+          `[サイドマッピング削除] クライアント ${client.id} をセッション ${sessionId} から削除`
+        );
+
+        // セッションが空になった場合はセッション全体を削除
+        if (sessionMapping.size === 0) {
+          this.clientSideMapping.delete(sessionId);
+          this.logger.log(
+            `[セッションマッピング削除] セッション ${sessionId} のマッピングを削除`
+          );
+        }
+      }
+    }
+
     this.wsConnection.handleDisconnection(client);
   }
 
@@ -175,11 +196,11 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
         `Starting session ${payload.sessionId} by client ${client.id}`
       );
 
-      // クライアントがモデレーターかチェック
+      // 制約解除：誰でもセッション開始可能
       const clientData = this.wsConnection.getClient(client.id);
-      if (!clientData || clientData.role !== "moderator") {
+      if (!clientData) {
         client.emit(S2C_EVENTS.ERROR, {
-          message: "セッション開始はモデレーターのみ可能です",
+          message: "クライアントデータが見つかりません",
         });
         return;
       }
@@ -266,13 +287,8 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      // モデレーターの場合はparticipantSideがundefinedでも処理を続行
-      if (!clientData.participantSide && clientData.role !== "moderator") {
-        this.logger.warn(
-          `Client ${client.id} not properly connected to session - role: ${clientData?.role}, side: ${clientData?.participantSide}`
-        );
-        return;
-      }
+      // 制約解除：participantSideがなくても処理を続行
+      // （後でeffectiveSideとして扱う）
 
       // 蓄積された音声データを取得
       const clientBuffers = this.audioBuffers.get(client.id) || [];
@@ -314,38 +330,47 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const sessionRoom = this.wsConnection.getSessionRoom(
         clientData.sessionId
       );
+
+      this.logger.log(
+        `[DEBUG] セッション ${clientData.sessionId} の状態確認 - sessionRoom: ${sessionRoom ? "あり" : "なし"}, state: ${sessionRoom?.state}`
+      );
+
       const currentTurn = this.getCurrentTurnFromState(sessionRoom?.state);
 
+      this.logger.log(
+        `[DEBUG] 現在のターン計算結果: ${currentTurn} (state: ${sessionRoom?.state})`
+      );
+
       if (currentTurn > 0) {
-        // モデレーターの場合は発話チェックをスキップ
-        if (clientData.role === "moderator") {
-          this.logger.log(`[STT] Moderator ${client.id} spoke: "${finalText}"`);
-          // モデレーターの発話はデバッグ用としてログのみ出力
-          return;
-        }
+        // 制約解除：誰でも発話をDB保存できるように
+        // participantSideがない場合は自動的にサイドを割り当て
+        let effectiveSide = clientData.participantSide;
 
-        // 参加者の場合は発話可能かチェック
-        const canSpeak = this.canClientSpeak(
-          sessionRoom?.state,
-          clientData.participantSide
-        );
-        if (!canSpeak) {
-          this.logger.warn(
-            `Client ${client.id} tried to speak but it's not their turn`
+        if (!effectiveSide) {
+          // クライアントIDベースで自動割り当て
+          effectiveSide = this.getEffectiveSideForClient(
+            client.id,
+            clientData.sessionId
           );
-          client.emit(S2C_EVENTS.ERROR, {
-            message: "現在はあなたの発話ターンではありません",
-          });
-          return;
         }
 
-        // 発話を保存
+        this.logger.log(
+          `[STT→DB] クライアント ${client.id} (role: ${clientData.role}, side: ${effectiveSide}) の発話を記録開始: "${finalText}"`
+        );
+
+        this.logger.log(
+          `[DB保存前] processUtteranceパラメータ確認 - sessionId: ${clientData.sessionId}, turnIndex: ${currentTurn}, side: ${effectiveSide}, text: "${finalText}"`
+        );
+
+        // 発話を保存（各発言終了時に即座に実行）
         await this.debateSession.processUtterance(
           clientData.sessionId,
           currentTurn,
-          clientData.participantSide!,
+          effectiveSide,
           finalText
         );
+
+        this.logger.log(`[STT→DB] クライアント ${client.id} の発話記録完了`);
 
         // 最終認識結果をブロードキャスト
         this.wsConnection.broadcastToSession(
@@ -354,13 +379,13 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
           {
             text: finalText,
             clientId: client.id,
-            side: clientData.participantSide,
+            side: effectiveSide,
             turnIndex: currentTurn,
           }
         );
 
         this.logger.log(
-          `[STT→DB] セッション ${clientData.sessionId}, ターン ${currentTurn}, ${clientData.participantSide}側に発話処理完了: "${finalText}"`
+          `[STT→DB] セッション ${clientData.sessionId}, ターン ${currentTurn}, ${effectiveSide}側に発話処理完了: "${finalText}"`
         );
       } else {
         this.logger.warn(`Client ${client.id} spoke but no active turn found`);
@@ -404,23 +429,22 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      // 現在のターンで発話可能かチェック
-      const canSpeak = this.canClientSpeak(
-        sessionRoom?.state,
-        clientData.participantSide
-      );
-      if (!canSpeak) {
-        client.emit(S2C_EVENTS.ERROR, {
-          message: "現在はあなたの発話ターンではありません",
-        });
-        return;
+      // 制約解除：誰でも発話可能
+      let effectiveSide = clientData.participantSide;
+
+      if (!effectiveSide) {
+        // クライアントIDベースで自動割り当て
+        effectiveSide = this.getEffectiveSideForClient(
+          client.id,
+          clientData.sessionId
+        );
       }
 
       // 発話を保存
       await this.debateSession.processUtterance(
         clientData.sessionId,
         currentTurn,
-        clientData.participantSide,
+        effectiveSide,
         payload.text
       );
 
@@ -431,13 +455,13 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
         {
           text: payload.text,
           clientId: client.id,
-          side: clientData.participantSide,
+          side: effectiveSide,
           turnIndex: currentTurn,
         }
       );
 
       this.logger.log(
-        `Text processed for session ${clientData.sessionId}, turn ${currentTurn}, side ${clientData.participantSide}`
+        `Text processed for session ${clientData.sessionId}, turn ${currentTurn}, side ${effectiveSide}`
       );
     } catch (error) {
       this.logger.error(`Failed to process text: ${error.message}`);
@@ -504,5 +528,35 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
         noAudio: payload.noAudio,
       }
     );
+  }
+
+  // セッション内のクライアント接続順序でサイドを自動割り当て
+  private clientSideMapping = new Map<string, Map<string, Side>>();
+
+  private getEffectiveSideForClient(clientId: string, sessionId: string): Side {
+    // セッション毎のマッピングを取得または作成
+    if (!this.clientSideMapping.has(sessionId)) {
+      this.clientSideMapping.set(sessionId, new Map());
+    }
+
+    const sessionMapping = this.clientSideMapping.get(sessionId)!;
+
+    // 既にマッピングが存在する場合はそれを返す
+    if (sessionMapping.has(clientId)) {
+      return sessionMapping.get(clientId)!;
+    }
+
+    // 新しいクライアントの場合、接続順序でサイドを決定
+    const existingClients = Array.from(sessionMapping.keys());
+    const assignedSide =
+      existingClients.length % 2 === 0 ? Side.RIGHT : Side.LEFT;
+
+    sessionMapping.set(clientId, assignedSide);
+
+    this.logger.log(
+      `[サイド自動割り当て] クライアント ${clientId} をセッション ${sessionId} の ${assignedSide} に割り当て (接続順: ${existingClients.length + 1})`
+    );
+
+    return assignedSide;
   }
 }

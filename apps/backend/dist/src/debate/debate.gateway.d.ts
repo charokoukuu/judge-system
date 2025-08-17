@@ -36,4 +36,6 @@ export declare class DebateGateway implements OnGatewayConnection, OnGatewayDisc
         error?: boolean;
         noAudio?: boolean;
     }, client: Socket): void;
+    private clientSideMapping;
+    private getEffectiveSideForClient;
 }

@@ -104,19 +104,36 @@ export class UtteranceRepository {
   }
 
   async upsertUtterance(data: CreateUtteranceDto): Promise<Utterance> {
-    return this.prisma.utterance.upsert({
-      where: {
-        unique_utterance_per_side_per_turn: {
-          sessionId: data.sessionId,
-          turnIndex: data.turnIndex,
-          side: data.side,
-        },
-      },
-      update: {
-        text: data.text,
-      },
-      create: data,
+    console.log(`[UtteranceRepository] upsertUtterance開始 - data:`, {
+      sessionId: data.sessionId,
+      turnIndex: data.turnIndex,
+      side: data.side,
+      textLength: data.text.length,
     });
+
+    try {
+      const result = await this.prisma.utterance.upsert({
+        where: {
+          unique_utterance_per_side_per_turn: {
+            sessionId: data.sessionId,
+            turnIndex: data.turnIndex,
+            side: data.side,
+          },
+        },
+        update: {
+          text: data.text,
+        },
+        create: data,
+      });
+
+      console.log(
+        `[UtteranceRepository] upsertUtterance成功 - ID: ${result.id}`
+      );
+      return result;
+    } catch (error) {
+      console.error(`[UtteranceRepository] upsertUtterance失敗:`, error);
+      throw error;
+    }
   }
 
   async countBySession(sessionId: string): Promise<number> {

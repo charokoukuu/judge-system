@@ -27,6 +27,7 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
         this.debateSession = debateSession;
         this.logger = new common_1.Logger(DebateGateway_1.name);
         this.audioBuffers = new Map();
+        this.clientSideMapping = new Map();
     }
     afterInit(server) {
         this.wsConnection.setServer(server);
@@ -36,6 +37,16 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
         this.wsConnection.handleConnection(client);
     }
     handleDisconnect(client) {
+        for (const [sessionId, sessionMapping,] of this.clientSideMapping.entries()) {
+            if (sessionMapping.has(client.id)) {
+                sessionMapping.delete(client.id);
+                this.logger.log(`[サイドマッピング削除] クライアント ${client.id} をセッション ${sessionId} から削除`);
+                if (sessionMapping.size === 0) {
+                    this.clientSideMapping.delete(sessionId);
+                    this.logger.log(`[セッションマッピング削除] セッション ${sessionId} のマッピングを削除`);
+                }
+            }
+        }
         this.wsConnection.handleDisconnection(client);
     }
     async handleSessionCreate(payload, client) {
@@ -116,9 +127,9 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
         try {
             this.logger.log(`Starting session ${payload.sessionId} by client ${client.id}`);
             const clientData = this.wsConnection.getClient(client.id);
-            if (!clientData || clientData.role !== "moderator") {
+            if (!clientData) {
                 client.emit(types_1.S2C_EVENTS.ERROR, {
-                    message: "セッション開始はモデレーターのみ可能です",
+                    message: "クライアントデータが見つかりません",
                 });
                 return;
             }
@@ -170,10 +181,6 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
                 this.logger.warn(`Client ${client.id} not connected to session - sessionId: ${clientData?.sessionId}`);
                 return;
             }
-            if (!clientData.participantSide && clientData.role !== "moderator") {
-                this.logger.warn(`Client ${client.id} not properly connected to session - role: ${clientData?.role}, side: ${clientData?.participantSide}`);
-                return;
-            }
             const clientBuffers = this.audioBuffers.get(client.id) || [];
             this.audioBuffers.delete(client.id);
             if (clientBuffers.length === 0) {
@@ -197,28 +204,25 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
                 return;
             }
             const sessionRoom = this.wsConnection.getSessionRoom(clientData.sessionId);
+            this.logger.log(`[DEBUG] セッション ${clientData.sessionId} の状態確認 - sessionRoom: ${sessionRoom ? "あり" : "なし"}, state: ${sessionRoom?.state}`);
             const currentTurn = this.getCurrentTurnFromState(sessionRoom?.state);
+            this.logger.log(`[DEBUG] 現在のターン計算結果: ${currentTurn} (state: ${sessionRoom?.state})`);
             if (currentTurn > 0) {
-                if (clientData.role === "moderator") {
-                    this.logger.log(`[STT] Moderator ${client.id} spoke: "${finalText}"`);
-                    return;
+                let effectiveSide = clientData.participantSide;
+                if (!effectiveSide) {
+                    effectiveSide = this.getEffectiveSideForClient(client.id, clientData.sessionId);
                 }
-                const canSpeak = this.canClientSpeak(sessionRoom?.state, clientData.participantSide);
-                if (!canSpeak) {
-                    this.logger.warn(`Client ${client.id} tried to speak but it's not their turn`);
-                    client.emit(types_1.S2C_EVENTS.ERROR, {
-                        message: "現在はあなたの発話ターンではありません",
-                    });
-                    return;
-                }
-                await this.debateSession.processUtterance(clientData.sessionId, currentTurn, clientData.participantSide, finalText);
+                this.logger.log(`[STT→DB] クライアント ${client.id} (role: ${clientData.role}, side: ${effectiveSide}) の発話を記録開始: "${finalText}"`);
+                this.logger.log(`[DB保存前] processUtteranceパラメータ確認 - sessionId: ${clientData.sessionId}, turnIndex: ${currentTurn}, side: ${effectiveSide}, text: "${finalText}"`);
+                await this.debateSession.processUtterance(clientData.sessionId, currentTurn, effectiveSide, finalText);
+                this.logger.log(`[STT→DB] クライアント ${client.id} の発話記録完了`);
                 this.wsConnection.broadcastToSession(clientData.sessionId, types_1.S2C_EVENTS.TRANSCRIPT_FINAL, {
                     text: finalText,
                     clientId: client.id,
-                    side: clientData.participantSide,
+                    side: effectiveSide,
                     turnIndex: currentTurn,
                 });
-                this.logger.log(`[STT→DB] セッション ${clientData.sessionId}, ターン ${currentTurn}, ${clientData.participantSide}側に発話処理完了: "${finalText}"`);
+                this.logger.log(`[STT→DB] セッション ${clientData.sessionId}, ターン ${currentTurn}, ${effectiveSide}側に発話処理完了: "${finalText}"`);
             }
             else {
                 this.logger.warn(`Client ${client.id} spoke but no active turn found`);
@@ -249,21 +253,18 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
                 });
                 return;
             }
-            const canSpeak = this.canClientSpeak(sessionRoom?.state, clientData.participantSide);
-            if (!canSpeak) {
-                client.emit(types_1.S2C_EVENTS.ERROR, {
-                    message: "現在はあなたの発話ターンではありません",
-                });
-                return;
+            let effectiveSide = clientData.participantSide;
+            if (!effectiveSide) {
+                effectiveSide = this.getEffectiveSideForClient(client.id, clientData.sessionId);
             }
-            await this.debateSession.processUtterance(clientData.sessionId, currentTurn, clientData.participantSide, payload.text);
+            await this.debateSession.processUtterance(clientData.sessionId, currentTurn, effectiveSide, payload.text);
             this.wsConnection.broadcastToSession(clientData.sessionId, types_1.S2C_EVENTS.TRANSCRIPT_FINAL, {
                 text: payload.text,
                 clientId: client.id,
-                side: clientData.participantSide,
+                side: effectiveSide,
                 turnIndex: currentTurn,
             });
-            this.logger.log(`Text processed for session ${clientData.sessionId}, turn ${currentTurn}, side ${clientData.participantSide}`);
+            this.logger.log(`Text processed for session ${clientData.sessionId}, turn ${currentTurn}, side ${effectiveSide}`);
         }
         catch (error) {
             this.logger.error(`Failed to process text: ${error.message}`);
@@ -307,6 +308,20 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
             error: payload.error,
             noAudio: payload.noAudio,
         });
+    }
+    getEffectiveSideForClient(clientId, sessionId) {
+        if (!this.clientSideMapping.has(sessionId)) {
+            this.clientSideMapping.set(sessionId, new Map());
+        }
+        const sessionMapping = this.clientSideMapping.get(sessionId);
+        if (sessionMapping.has(clientId)) {
+            return sessionMapping.get(clientId);
+        }
+        const existingClients = Array.from(sessionMapping.keys());
+        const assignedSide = existingClients.length % 2 === 0 ? client_1.Side.RIGHT : client_1.Side.LEFT;
+        sessionMapping.set(clientId, assignedSide);
+        this.logger.log(`[サイド自動割り当て] クライアント ${clientId} をセッション ${sessionId} の ${assignedSide} に割り当て (接続順: ${existingClients.length + 1})`);
+        return assignedSide;
     }
 };
 exports.DebateGateway = DebateGateway;

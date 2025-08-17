@@ -228,7 +228,7 @@ export class DebateSessionService {
 
     const timeoutId = setTimeout(() => {
       this.endTurn(sessionId, turnIndex, side);
-    }, 30000); // 30秒
+    }, 10000); // 30秒
 
     const timer: TurnTimer = {
       sessionId,
@@ -510,14 +510,24 @@ export class DebateSessionService {
     side: Side,
     text: string
   ): Promise<void> {
+    this.logger.log(
+      `[DB処理開始] processUtterance呼び出し - sessionId: ${sessionId}, turnIndex: ${turnIndex}, side: ${side}, text: "${text}"`
+    );
+
     try {
       // データベースに発話を保存
-      await this.utteranceRepository.upsertUtterance({
+      this.logger.log(`[DB実行中] upsertUtteranceを実行中...`);
+
+      const result = await this.utteranceRepository.upsertUtterance({
         sessionId,
         turnIndex,
         side,
         text,
       });
+
+      this.logger.log(
+        `[DB保存成功] 発話ID: ${result.id}, セッション: ${sessionId}, ターン: ${turnIndex}, サイド: ${side}`
+      );
 
       // WebSocketで他のクライアントに通知
       this.wsConnection.broadcastToSession(sessionId, "utterance:received", {
@@ -533,7 +543,10 @@ export class DebateSessionService {
         `[STT] セッション ${sessionId}, ターン ${turnIndex}, ${sideText}側の発話をDBに保存: "${text}"`
       );
     } catch (error) {
-      this.logger.error(`Failed to process utterance: ${error.message}`);
+      this.logger.error(
+        `[DB保存エラー] Failed to process utterance: ${error.message}`
+      );
+      this.logger.error(`[DB保存エラー] Stack trace:`, error.stack);
     }
   }
 
