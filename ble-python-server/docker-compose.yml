@@ -1,0 +1,12 @@
+services:
+  ble-server:
+    build: .
+    ports:
+      - "9000:9000"
+    privileged: true # BLE機能にはprivileged modeが必要
+    volumes:
+      - /dev:/dev # デバイスファイルへのアクセス
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    container_name: ble-node-python-server
