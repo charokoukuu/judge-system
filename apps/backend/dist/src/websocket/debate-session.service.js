@@ -55,6 +55,8 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             if (session.state !== client_1.SessionState.IDLE) {
                 throw new Error(`Session ${sessionId} is not in IDLE state`);
             }
+            this.wrapUpTurn(sessionId, 2);
+            return;
             await this.sessionRepository.updateState(sessionId, client_1.SessionState.READY);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.READY);
             const systemPrompt = `
@@ -135,13 +137,24 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             await this.sessionRepository.updateState(sessionId, newState);
             this.wsConnection.updateSessionState(sessionId, newState);
             const sideText = side === client_1.Side.RIGHT ? "右" : "左";
-            const turnText = turnIndex === 3 ? "最終弁論" : `第${turnIndex}ターン`;
-            const message = `${turnText}、${sideText}の者、どうぞ。10秒でお話してください。`;
+            const turnText = turnIndex === 3 ? "" : `第${turnIndex}ターン`;
+            const message = `${turnText}${sideText}の者、どうぞ。10秒でお話してください。`;
             await this.aiResponseRepository.create({
                 sessionId,
                 turnIndex,
                 text: message,
             });
+            if (turnIndex === 3 && side === client_1.Side.RIGHT) {
+                const finalMessage = "最終弁論です。内容をまとめてください。";
+                await this.generateAndBroadcastAudioSync(sessionId, finalMessage, () => {
+                    this.wsConnection.broadcastToSession(sessionId, "turn:started", {
+                        sessionId,
+                        turnIndex,
+                        side,
+                        message: finalMessage,
+                    });
+                });
+            }
             await this.generateAndBroadcastAudioSync(sessionId, message, () => {
                 this.wsConnection.broadcastToSession(sessionId, "turn:started", {
                     sessionId,
