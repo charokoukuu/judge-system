@@ -12,6 +12,7 @@ import { OpenaiService } from "../openai/openai.service";
 import { StylebartService } from "../stylebart/stylebart.service";
 import { timer } from "src/util/timer";
 import { exampleUtterance } from "src/util/exampleMessage";
+import { judgeTrigger } from "src/util/judge-trigger";
 
 export interface DebateSessionConfig {
   theme: string;
@@ -56,6 +57,7 @@ export class DebateSessionService {
    * 新しいディベートセッションを作成
    */
   async createSession(config: DebateSessionConfig): Promise<string> {
+    await judgeTrigger("0");
     try {
       const session = await this.sessionRepository.create({
         theme: config.theme,
@@ -89,9 +91,9 @@ export class DebateSessionService {
 
       // セッション状態をREADYに更新
       // DEBUG: IDLEに戻す
-      this.startTurn(sessionId, 1, Side.RIGHT);
+      // this.startTurn(sessionId, 1, Side.RIGHT);
 
-      return;
+      // return;
       await this.sessionRepository.updateState(sessionId, SessionState.READY);
       this.wsConnection.updateSessionState(sessionId, SessionState.READY);
       const systemPrompt = `
@@ -204,6 +206,7 @@ export class DebateSessionService {
       });
 
       if (side === Side.RIGHT) {
+        await judgeTrigger("0");
         const turnMessage =
           turnIndex === 3
             ? "最終弁論です。内容をまとめてください。"
@@ -460,6 +463,8 @@ export class DebateSessionService {
         message,
       });
 
+      await judgeTrigger((rate * 80).toString());
+
       await this.generateAndBroadcastAudio(sessionId, message);
 
       // 次のステップに進む
@@ -499,6 +504,7 @@ export class DebateSessionService {
    */
   async startFinalJudgment(sessionId: string): Promise<void> {
     try {
+      await judgeTrigger("0");
       await this.sessionRepository.updateState(sessionId, SessionState.JUDGING);
       this.wsConnection.updateSessionState(sessionId, SessionState.JUDGING);
 
@@ -558,13 +564,15 @@ export class DebateSessionService {
         text: message,
       });
 
-      await this.generateAndBroadcastAudioSync(sessionId, message, () => {
+      await this.generateAndBroadcastAudioSync(sessionId, message, async () => {
         this.wsConnection.broadcastToSession(sessionId, "verdict:announced", {
           sessionId,
           winner,
           rationale,
           message,
         });
+        await timer(2000);
+        await judgeTrigger(winner === Side.RIGHT ? "35" : "-35");
       });
 
       // セッション終了

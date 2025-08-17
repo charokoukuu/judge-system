@@ -19,6 +19,7 @@ const openai_service_1 = require("../openai/openai.service");
 const stylebart_service_1 = require("../stylebart/stylebart.service");
 const timer_1 = require("../util/timer");
 const exampleMessage_1 = require("../util/exampleMessage");
+const judge_trigger_1 = require("../util/judge-trigger");
 let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
     constructor(wsConnection, sessionRepository, utteranceRepository, turnResultRepository, verdictRepository, aiResponseRepository, openaiService, stylebartService) {
         this.wsConnection = wsConnection;
@@ -34,6 +35,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         this.pendingAudioPlaybacks = new Map();
     }
     async createSession(config) {
+        await (0, judge_trigger_1.judgeTrigger)("0");
         try {
             const session = await this.sessionRepository.create({
                 theme: config.theme,
@@ -56,8 +58,6 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             if (session.state !== client_1.SessionState.IDLE) {
                 throw new Error(`Session ${sessionId} is not in IDLE state`);
             }
-            this.startTurn(sessionId, 1, client_1.Side.RIGHT);
-            return;
             await this.sessionRepository.updateState(sessionId, client_1.SessionState.READY);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.READY);
             const systemPrompt = `
@@ -143,6 +143,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 text: message,
             });
             if (side === client_1.Side.RIGHT) {
+                await (0, judge_trigger_1.judgeTrigger)("0");
                 const turnMessage = turnIndex === 3
                     ? "最終弁論です。内容をまとめてください。"
                     : `第${turnIndex}ターン`;
@@ -307,6 +308,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 rate,
                 message,
             });
+            await (0, judge_trigger_1.judgeTrigger)((rate * 80).toString());
             await this.generateAndBroadcastAudio(sessionId, message);
             setTimeout(() => {
                 this.proceedToNext(sessionId, turnIndex);
@@ -333,6 +335,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
     }
     async startFinalJudgment(sessionId) {
         try {
+            await (0, judge_trigger_1.judgeTrigger)("0");
             await this.sessionRepository.updateState(sessionId, client_1.SessionState.JUDGING);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.JUDGING);
             const message = "全ての発言が出揃いました。最終判定を行います。";
@@ -369,13 +372,15 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 turnIndex: 3,
                 text: message,
             });
-            await this.generateAndBroadcastAudioSync(sessionId, message, () => {
+            await this.generateAndBroadcastAudioSync(sessionId, message, async () => {
                 this.wsConnection.broadcastToSession(sessionId, "verdict:announced", {
                     sessionId,
                     winner,
                     rationale,
                     message,
                 });
+                await (0, timer_1.timer)(2000);
+                await (0, judge_trigger_1.judgeTrigger)(winner === client_1.Side.RIGHT ? "35" : "-35");
             });
             await (0, timer_1.timer)(2000);
             this.finishSession(sessionId);
