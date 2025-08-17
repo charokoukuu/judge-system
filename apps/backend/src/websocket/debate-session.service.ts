@@ -88,9 +88,9 @@ export class DebateSessionService {
 
       // セッション状態をREADYに更新
       // DEBUG: IDLEに戻す
-      this.wrapUpTurn(sessionId, 2);
+      // this.wrapUpTurn(sessionId, 2);
 
-      return;
+      // return;
       await this.sessionRepository.updateState(sessionId, SessionState.READY);
       this.wsConnection.updateSessionState(sessionId, SessionState.READY);
       const systemPrompt = `
@@ -197,8 +197,7 @@ export class DebateSessionService {
       this.wsConnection.updateSessionState(sessionId, newState);
 
       const sideText = side === Side.RIGHT ? "右" : "左";
-      const turnText = turnIndex === 3 ? "" : `第${turnIndex}ターン`;
-      const message = `${turnText}${sideText}の者、どうぞ。10秒でお話してください。`;
+      const message = `${sideText}の方、どうぞ。10秒でお話してください。`;
 
       // AIアナウンスを保存
       await this.aiResponseRepository.create({
@@ -207,20 +206,19 @@ export class DebateSessionService {
         text: message,
       });
 
-      if (turnIndex === 3 && side === Side.RIGHT) {
-        const finalMessage = "最終弁論です。内容をまとめてください。";
-        await this.generateAndBroadcastAudioSync(
-          sessionId,
-          finalMessage,
-          () => {
-            this.wsConnection.broadcastToSession(sessionId, "turn:started", {
-              sessionId,
-              turnIndex,
-              side,
-              message: finalMessage,
-            });
-          }
-        );
+      if (side === Side.RIGHT) {
+        const turnMessage =
+          turnIndex === 3
+            ? "最終弁論です。内容をまとめてください。"
+            : `第${turnIndex}ターン`;
+        await this.generateAndBroadcastAudioSync(sessionId, turnMessage, () => {
+          this.wsConnection.broadcastToSession(sessionId, "turn:started", {
+            sessionId,
+            turnIndex,
+            side,
+            message: turnMessage,
+          });
+        });
       }
 
       // TTSでアナウンス、完了後にタイマー開始
