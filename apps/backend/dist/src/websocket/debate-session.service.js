@@ -91,12 +91,13 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 turnIndex: 0,
                 text: startMessage,
             });
-            this.wsConnection.broadcastToSession(sessionId, "session:started", {
-                sessionId,
-                theme: session.theme,
-                message: startMessage,
+            await this.generateAndBroadcastAudioSync(sessionId, startMessage, () => {
+                this.wsConnection.broadcastToSession(sessionId, "session:started", {
+                    sessionId,
+                    theme: session.theme,
+                    message: startMessage,
+                });
             });
-            await this.generateAndBroadcastAudioSync(sessionId, startMessage);
             await this.startTurn(sessionId, 1, client_1.Side.RIGHT);
             this.logger.log(`Session ${sessionId} started`);
         }
@@ -141,24 +142,25 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 turnIndex,
                 text: message,
             });
-            this.wsConnection.broadcastToSession(sessionId, "turn:started", {
-                sessionId,
-                turnIndex,
-                side,
-                message,
+            await this.generateAndBroadcastAudioSync(sessionId, message, () => {
+                this.wsConnection.broadcastToSession(sessionId, "turn:started", {
+                    sessionId,
+                    turnIndex,
+                    side,
+                    message,
+                });
+                this.wsConnection.sendToSessionSide(sessionId, side, "turn:your_turn", {
+                    turnIndex,
+                    duration: 30,
+                    message: "あなたの発話時間です",
+                });
             });
-            this.wsConnection.sendToSessionSide(sessionId, side, "turn:your_turn", {
-                turnIndex,
-                duration: 30,
-                message: "あなたの発話時間です",
-            });
-            await this.generateAndBroadcastAudioSync(sessionId, message);
             this.setTurnTimer(sessionId, turnIndex, side);
             this.wsConnection.broadcastToSession(sessionId, "turn:countdown_started", {
                 sessionId,
                 turnIndex,
                 side,
-                duration: 10,
+                duration: 2,
             });
             this.logger.log(`Timer started for turn ${turnIndex} after audio completion in session ${sessionId}`);
             this.logger.log(`Started turn ${turnIndex} for ${side} side in session ${sessionId}`);
@@ -174,7 +176,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         this.clearTurnTimer(sessionId);
         const timeoutId = setTimeout(() => {
             this.endTurn(sessionId, turnIndex, side);
-        }, 10000);
+        }, 2000);
         const timer = {
             sessionId,
             turnIndex,
@@ -328,9 +330,10 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 sessionId,
                 message,
             });
-            await this.generateAndBroadcastAudio(sessionId, message);
             const verdict = await this.performFinalJudgment(sessionId);
+            await this.generateAndBroadcastAudioSync(sessionId, message);
             await this.verdictRepository.upsertVerdict(verdict);
+            console.log(`Verdict announced for session ${sessionId}: ${JSON.stringify(verdict)}`);
             await this.announceVerdict(sessionId, verdict.winner, verdict.rationale);
         }
         catch (error) {
@@ -351,16 +354,16 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 turnIndex: 3,
                 text: message,
             });
-            this.wsConnection.broadcastToSession(sessionId, "verdict:announced", {
-                sessionId,
-                winner,
-                rationale,
-                message,
+            await this.generateAndBroadcastAudioSync(sessionId, message, () => {
+                this.wsConnection.broadcastToSession(sessionId, "verdict:announced", {
+                    sessionId,
+                    winner,
+                    rationale,
+                    message,
+                });
             });
-            await this.generateAndBroadcastAudio(sessionId, message);
-            setTimeout(() => {
-                this.finishSession(sessionId);
-            }, 10000);
+            await (0, timer_1.timer)(2000);
+            this.finishSession(sessionId);
         }
         catch (error) {
             this.logger.error(`Failed to announce verdict: ${error.message}`);
@@ -621,7 +624,7 @@ ${turnResults.join("\n")}
             this.logger.warn(`No pending callback found for: "${text}"`);
         }
     }
-    async generateAndBroadcastAudioSync(sessionId, text) {
+    async generateAndBroadcastAudioSync(sessionId, text, callback) {
         try {
             this.logger.log(`Generating audio for text: "${text}"`);
             const audioBuffer = await this.stylebartService.textToSpeech(text);
@@ -646,6 +649,7 @@ ${turnResults.join("\n")}
                         audioData: audioBase64,
                         audioType: "audio/wav",
                     });
+                    callback?.();
                     this.logger.log(`Audio generated and broadcasted for session ${sessionId}, waiting for playback completion`);
                 });
             }

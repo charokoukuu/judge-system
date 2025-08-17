@@ -276,7 +276,7 @@ export const useDebateWebSocket = () => {
     socket.on("session:state_changed", (data: any) => {
       console.log("Session state changed:", data);
       setSession((prev) => (prev ? { ...prev, state: data.state } : null));
-      addMessage(`セッション状態が変更されました: ${data.state}`, "system");
+      // addMessage(`セッション状態が変更されました: ${data.state}`, "system");
     });
 
     // セッション開始
