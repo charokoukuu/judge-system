@@ -89,9 +89,9 @@ export class DebateSessionService {
 
       // セッション状態をREADYに更新
       // DEBUG: IDLEに戻す
-      // this.wrapUpTurn(sessionId, 2);
+      this.startTurn(sessionId, 1, Side.RIGHT);
 
-      // return;
+      return;
       await this.sessionRepository.updateState(sessionId, SessionState.READY);
       this.wsConnection.updateSessionState(sessionId, SessionState.READY);
       const systemPrompt = `
@@ -193,10 +193,6 @@ export class DebateSessionService {
         throw new Error(`Invalid turn index: ${turnIndex}`);
       }
 
-      // セッション状態を更新
-      await this.sessionRepository.updateState(sessionId, newState);
-      this.wsConnection.updateSessionState(sessionId, newState);
-
       const sideText = side === Side.RIGHT ? "右" : "左";
       const message = `${sideText}の方、どうぞ。10秒でお話してください。`;
 
@@ -216,14 +212,16 @@ export class DebateSessionService {
           this.wsConnection.broadcastToSession(sessionId, "turn:started", {
             sessionId,
             turnIndex,
-            side,
             message: turnMessage,
           });
         });
       }
 
       // TTSでアナウンス、完了後にタイマー開始
-      await this.generateAndBroadcastAudioSync(sessionId, message, () => {
+      await this.generateAndBroadcastAudioSync(sessionId, message, async () => {
+        // セッション状態を更新
+        await this.sessionRepository.updateState(sessionId, newState);
+        this.wsConnection.updateSessionState(sessionId, newState);
         // ターン開始通知
         this.wsConnection.broadcastToSession(sessionId, "turn:started", {
           sessionId,
@@ -232,7 +230,7 @@ export class DebateSessionService {
           message,
         });
 
-        // 特定のサイドに発話開始を通知
+        //   // 特定のサイドに発話開始を通知
         this.wsConnection.sendToSessionSide(sessionId, side, "turn:your_turn", {
           turnIndex,
           duration: 30,

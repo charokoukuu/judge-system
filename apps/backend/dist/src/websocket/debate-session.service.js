@@ -56,6 +56,8 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             if (session.state !== client_1.SessionState.IDLE) {
                 throw new Error(`Session ${sessionId} is not in IDLE state`);
             }
+            this.startTurn(sessionId, 1, client_1.Side.RIGHT);
+            return;
             await this.sessionRepository.updateState(sessionId, client_1.SessionState.READY);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.READY);
             const systemPrompt = `
@@ -133,8 +135,6 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             else {
                 throw new Error(`Invalid turn index: ${turnIndex}`);
             }
-            await this.sessionRepository.updateState(sessionId, newState);
-            this.wsConnection.updateSessionState(sessionId, newState);
             const sideText = side === client_1.Side.RIGHT ? "右" : "左";
             const message = `${sideText}の方、どうぞ。10秒でお話してください。`;
             await this.aiResponseRepository.create({
@@ -150,12 +150,13 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                     this.wsConnection.broadcastToSession(sessionId, "turn:started", {
                         sessionId,
                         turnIndex,
-                        side,
                         message: turnMessage,
                     });
                 });
             }
-            await this.generateAndBroadcastAudioSync(sessionId, message, () => {
+            await this.generateAndBroadcastAudioSync(sessionId, message, async () => {
+                await this.sessionRepository.updateState(sessionId, newState);
+                this.wsConnection.updateSessionState(sessionId, newState);
                 this.wsConnection.broadcastToSession(sessionId, "turn:started", {
                     sessionId,
                     turnIndex,
