@@ -17,6 +17,9 @@ export default function DebateScaleInterface() {
   const [lastStopEventTimestamp, setLastStopEventTimestamp] = useState<
     number | null
   >(null);
+  const [lastDisplayedMessage, setLastDisplayedMessage] = useState<
+    string | null
+  >(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
@@ -121,16 +124,23 @@ export default function DebateScaleInterface() {
     };
   }, []);
 
-  // AIメッセージを字幕として表示（アニメーション付き）
+  // AIメッセージを字幕として表示（重複防止とアニメーション付き）
   useEffect(() => {
     const latestAiMessage = messages
       .filter((msg) => msg.type === "system" || msg.type === "moderator")
       .slice(-1)[0];
 
-    if (latestAiMessage) {
+    if (latestAiMessage && latestAiMessage.text !== lastDisplayedMessage) {
+      console.log("[字幕更新] 新しいメッセージ:", latestAiMessage.text);
+      console.log("[字幕更新] 前回のメッセージ:", lastDisplayedMessage);
+
+      // 前回と同じメッセージの場合はスキップ
+      setLastDisplayedMessage(latestAiMessage.text);
+
       // フェードアウトしてから新しいメッセージを表示
       const element = document.querySelector(".magic-subtitle");
-      if (element) {
+      if (element && lastDisplayedMessage !== null) {
+        // 前回メッセージがある場合のみフェードアウト→フェードイン
         element.classList.add("animate-fade-out");
         setTimeout(() => {
           setAiSubtitle(latestAiMessage.text);
@@ -141,10 +151,16 @@ export default function DebateScaleInterface() {
           }, 1000);
         }, 300);
       } else {
+        // 初回メッセージまたは要素が見つからない場合は直接設定
         setAiSubtitle(latestAiMessage.text);
       }
+    } else if (
+      latestAiMessage &&
+      latestAiMessage.text === lastDisplayedMessage
+    ) {
+      console.log("[字幕更新] 重複メッセージをスキップ:", latestAiMessage.text);
     }
-  }, [messages]);
+  }, [messages, lastDisplayedMessage]);
 
   // turnResultの結果に基づいてスコア更新（録音制御はカウントダウンに依存）
   useEffect(() => {

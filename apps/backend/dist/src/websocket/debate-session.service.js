@@ -21,6 +21,24 @@ const timer_1 = require("../util/timer");
 const exampleMessage_1 = require("../util/exampleMessage");
 const judge_trigger_1 = require("../util/judge-trigger");
 let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
+    isDuplicateMessage(sessionId, text, windowMs = 3000) {
+        const key = `${sessionId}:${text}`;
+        const now = Date.now();
+        const lastSent = this.lastSentMessages.get(key);
+        if (lastSent && now - lastSent.timestamp < windowMs) {
+            this.logger.debug(`Duplicate message prevented for session ${sessionId}: "${text}"`);
+            return true;
+        }
+        this.lastSentMessages.set(key, { text, timestamp: now });
+        if (this.lastSentMessages.size % 100 === 0) {
+            for (const [k, data] of this.lastSentMessages.entries()) {
+                if (now - data.timestamp > 300000) {
+                    this.lastSentMessages.delete(k);
+                }
+            }
+        }
+        return false;
+    }
     constructor(wsConnection, sessionRepository, utteranceRepository, turnResultRepository, verdictRepository, aiResponseRepository, openaiService, stylebartService) {
         this.wsConnection = wsConnection;
         this.sessionRepository = sessionRepository;
@@ -33,6 +51,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         this.logger = new common_1.Logger(DebateSessionService_1.name);
         this.activeTurnTimers = new Map();
         this.pendingAudioPlaybacks = new Map();
+        this.lastSentMessages = new Map();
     }
     async createSession(config) {
         await (0, judge_trigger_1.judgeTrigger)("0");
@@ -585,6 +604,10 @@ ${turnResults.join("\n")}
     }
     async generateAndBroadcastAudio(sessionId, text) {
         try {
+            if (this.isDuplicateMessage(sessionId, text)) {
+                this.logger.debug(`Skipping duplicate audio generation for session ${sessionId}: "${text}"`);
+                return;
+            }
             this.logger.log(`Generating audio for text: "${text}"`);
             const audioBuffer = await this.stylebartService.textToSpeech(text);
             if (audioBuffer) {
@@ -648,6 +671,11 @@ ${turnResults.join("\n")}
     }
     async generateAndBroadcastAudioSync(sessionId, text, callback) {
         try {
+            if (this.isDuplicateMessage(sessionId, text)) {
+                this.logger.debug(`Skipping duplicate audio generation for session ${sessionId}: "${text}"`);
+                callback?.();
+                return;
+            }
             this.logger.log(`Generating audio for text: "${text}"`);
             const audioBuffer = await this.stylebartService.textToSpeech(text);
             if (audioBuffer) {

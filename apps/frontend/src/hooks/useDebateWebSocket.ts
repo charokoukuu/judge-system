@@ -72,6 +72,20 @@ export const useDebateWebSocket = () => {
 
   const addMessage = useCallback(
     (text: string, type: Message["type"], side?: "RIGHT" | "LEFT") => {
+      // 重複メッセージをチェック（同じテキストで直近3秒以内のメッセージがある場合はスキップ）
+      const now = new Date();
+      const recentDuplicate = messages.find(
+        (msg) =>
+          msg.text === text &&
+          msg.type === type &&
+          now.getTime() - msg.timestamp.getTime() < 3000 // 3秒以内
+      );
+
+      if (recentDuplicate) {
+        console.log("[メッセージ重複] スキップ:", text);
+        return;
+      }
+
       const message: Message = {
         id: Date.now().toString(),
         text,
@@ -79,9 +93,10 @@ export const useDebateWebSocket = () => {
         type,
         side,
       };
+      console.log("[メッセージ追加]", { text, type, side });
       setMessages((prev) => [...prev, message]);
     },
-    []
+    [messages]
   );
 
   // 音声キューを処理する関数

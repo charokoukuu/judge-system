@@ -41,6 +41,42 @@ export class DebateSessionService {
       timeout: NodeJS.Timeout;
     }
   >();
+  private readonly lastSentMessages = new Map<
+    string,
+    { text: string; timestamp: number }
+  >(); // 重複メッセージ防止
+
+  // 重複チェック機能
+  private isDuplicateMessage(
+    sessionId: string,
+    text: string,
+    windowMs = 3000
+  ): boolean {
+    const key = `${sessionId}:${text}`;
+    const now = Date.now();
+    const lastSent = this.lastSentMessages.get(key);
+
+    if (lastSent && now - lastSent.timestamp < windowMs) {
+      this.logger.debug(
+        `Duplicate message prevented for session ${sessionId}: "${text}"`
+      );
+      return true; // 重複
+    }
+
+    this.lastSentMessages.set(key, { text, timestamp: now });
+
+    // 古いエントリをクリーンアップ（5分以上前のものを削除）
+    if (this.lastSentMessages.size % 100 === 0) {
+      for (const [k, data] of this.lastSentMessages.entries()) {
+        if (now - data.timestamp > 300000) {
+          // 5分
+          this.lastSentMessages.delete(k);
+        }
+      }
+    }
+
+    return false;
+  }
 
   constructor(
     private readonly wsConnection: WebSocketConnectionService,
@@ -861,6 +897,14 @@ ${turnResults.join("\n")}
     text: string
   ): Promise<void> {
     try {
+      // 重複メッセージチェック
+      if (this.isDuplicateMessage(sessionId, text)) {
+        this.logger.debug(
+          `Skipping duplicate audio generation for session ${sessionId}: "${text}"`
+        );
+        return;
+      }
+
       this.logger.log(`Generating audio for text: "${text}"`);
 
       // Style-BART APIを使用して音声を生成
@@ -967,6 +1011,15 @@ ${turnResults.join("\n")}
     callback?: () => void
   ): Promise<void> {
     try {
+      // 重複メッセージチェック
+      if (this.isDuplicateMessage(sessionId, text)) {
+        this.logger.debug(
+          `Skipping duplicate audio generation for session ${sessionId}: "${text}"`
+        );
+        callback?.();
+        return;
+      }
+
       this.logger.log(`Generating audio for text: "${text}"`);
 
       // Style-BART APIを使用して音声を生成
