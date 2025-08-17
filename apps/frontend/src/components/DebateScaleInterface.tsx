@@ -26,6 +26,7 @@ export default function DebateScaleInterface() {
     error,
     countdownEvent,
     recordingStopEvent,
+    turnResults,
     createSession,
     startSession,
     sendAudioStart,
@@ -131,23 +132,42 @@ export default function DebateScaleInterface() {
     }
   }, [messages]);
 
-  // セッション状態に応じてスコア更新（録音制御はカウントダウンに依存）
+  // turnResultの結果に基づいてスコア更新（録音制御はカウントダウンに依存）
   useEffect(() => {
-    if (session?.state?.includes("RIGHT")) {
-      setCurrentScore(0.3); // 右に傾く
-    } else if (session?.state?.includes("LEFT")) {
-      setCurrentScore(-0.3); // 左に傾く
+    if (session?.state?.includes("RIGHT") || session?.state?.includes("LEFT")) {
+      // 発言中は天秤の傾きは変更しない（皿のサイズで表現）
+      // 現在のスコアを維持
     } else if (
       session?.state?.includes("WRAPUP") ||
       session?.state?.includes("JUDGING")
     ) {
-      setCurrentScore(0); // 中央
+      // WRAPUPまたはJUDGING状態では、最新のターン結果を反映
+      const currentTurn = session?.currentTurn || 1;
+      const latestTurnResult = turnResults[currentTurn];
+
+      if (typeof latestTurnResult === "number") {
+        // turnResultのスコア（-1.0 to 1.0）をそのまま使用
+        setCurrentScore(latestTurnResult);
+      } else {
+        setCurrentScore(0); // 評価結果がない場合は中央
+      }
+
       stopCountdown(); // カウントダウン停止（録音も自動停止）
     } else {
-      setCurrentScore(0); // 中央
+      // IDLE, READY, FINISHED状態では累積スコアを表示
+      const allScores = Object.values(turnResults);
+      if (allScores.length > 0) {
+        // 全ターンの平均スコアを計算
+        const averageScore =
+          allScores.reduce((sum, score) => sum + score, 0) / allScores.length;
+        setCurrentScore(averageScore);
+      } else {
+        setCurrentScore(0); // 評価結果がない場合は中央
+      }
+
       stopCountdown(); // カウントダウン停止（録音も自動停止）
     }
-  }, [session?.state, stopCountdown]);
+  }, [session?.state, session?.currentTurn, turnResults, stopCountdown]);
 
   // カウントダウンイベントに基づいてカウントダウン開始と自動録音
   useEffect(() => {
@@ -265,6 +285,26 @@ export default function DebateScaleInterface() {
   }; // 天秤の傾きを計算（-45度から+45度）
   const scaleRotation = currentScore * 45;
 
+  // 皿のサイズを計算（発言中は該当する皿を大きく表示）
+  const getPlateSize = (side: "LEFT" | "RIGHT") => {
+    const isSpeaking = session?.state?.includes(side);
+    return isSpeaking ? "w-20 h-20" : "w-16 h-16"; // 発言中は20、通常時は16
+  };
+
+  const getPlateTextSize = (side: "LEFT" | "RIGHT") => {
+    const isSpeaking = session?.state?.includes(side);
+    return isSpeaking ? "text-xl" : "text-lg"; // 発言中はテキストも大きく
+  };
+
+  const getPlateEffects = (side: "LEFT" | "RIGHT") => {
+    const isSpeaking = session?.state?.includes(side);
+    if (!isSpeaking) return "";
+
+    const shadowColor =
+      side === "LEFT" ? "shadow-red-400/50" : "shadow-blue-400/50";
+    return `shadow-lg ${shadowColor}`;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-900 to-purple-900 flex flex-col">
       {/* ヘッダー */}
@@ -345,13 +385,25 @@ export default function DebateScaleInterface() {
                   style={{ transform: `rotate(${scaleRotation}deg)` }}
                 >
                   {/* 左の皿 */}
-                  <div className="absolute -left-4 -top-8 w-16 h-16 bg-red-500/20 border-4 border-red-500 rounded-full flex items-center justify-center">
-                    <span className="text-red-500 font-bold text-lg">左</span>
+                  <div
+                    className={`absolute -left-4 -top-8 ${getPlateSize("LEFT")} bg-red-500/20 border-4 border-red-500 rounded-full flex items-center justify-center transition-all duration-300 ${getPlateEffects("LEFT")} ${session?.state?.includes("LEFT") ? "animate-pulse" : ""}`}
+                  >
+                    <span
+                      className={`text-red-500 font-bold ${getPlateTextSize("LEFT")}`}
+                    >
+                      左
+                    </span>
                   </div>
 
                   {/* 右の皿 */}
-                  <div className="absolute -right-4 -top-8 w-16 h-16 bg-blue-500/20 border-4 border-blue-500 rounded-full flex items-center justify-center">
-                    <span className="text-blue-500 font-bold text-lg">右</span>
+                  <div
+                    className={`absolute -right-4 -top-8 ${getPlateSize("RIGHT")} bg-blue-500/20 border-4 border-blue-500 rounded-full flex items-center justify-center transition-all duration-300 ${getPlateEffects("RIGHT")} ${session?.state?.includes("RIGHT") ? "animate-pulse" : ""}`}
+                  >
+                    <span
+                      className={`text-blue-500 font-bold ${getPlateTextSize("RIGHT")}`}
+                    >
+                      右
+                    </span>
                   </div>
                 </div>
               </div>
@@ -371,6 +423,33 @@ export default function DebateScaleInterface() {
                     </span>
                   )}
                 </div>
+
+                {/* ターン評価詳細 */}
+                {Object.keys(turnResults).length > 0 && (
+                  <div className="mt-4 text-sm text-white/80">
+                    <div className="flex justify-center space-x-4">
+                      {Object.entries(turnResults).map(([turnIndex, score]) => (
+                        <div key={turnIndex} className="text-center">
+                          <div className="text-xs text-white/60">
+                            ターン{turnIndex}
+                          </div>
+                          <div
+                            className={`text-sm font-medium ${
+                              score > 0
+                                ? "text-blue-400"
+                                : score < 0
+                                  ? "text-red-400"
+                                  : "text-gray-400"
+                            }`}
+                          >
+                            {score > 0 ? "右" : score < 0 ? "左" : "互角"}(
+                            {(score * 100).toFixed(0)})
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

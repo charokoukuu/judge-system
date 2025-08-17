@@ -54,6 +54,11 @@ export const useDebateWebSocket = () => {
     timestamp: number;
   } | null>(null);
 
+  // ターン評価結果
+  const [turnResults, setTurnResults] = useState<{
+    [turnIndex: number]: number; // -1.0 to 1.0 のスコア
+  }>({});
+
   // 音声再生キュー
   const audioQueueRef = useRef<
     Array<{
@@ -350,6 +355,14 @@ export const useDebateWebSocket = () => {
     socket.on("turn:evaluated", (data: any) => {
       console.log("Turn evaluated:", data);
       addMessage(data.message, "moderator");
+
+      // ターン評価結果を保存
+      if (data.turnIndex && typeof data.rate === "number") {
+        setTurnResults((prev) => ({
+          ...prev,
+          [data.turnIndex]: data.rate,
+        }));
+      }
     });
 
     // 音声生成完了
@@ -513,6 +526,7 @@ export const useDebateWebSocket = () => {
     isLoading,
     countdownEvent,
     recordingStopEvent,
+    turnResults,
     createSession,
     joinSession,
     startSession,
