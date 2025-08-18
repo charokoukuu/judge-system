@@ -18,7 +18,6 @@ const client_1 = require("@prisma/client");
 const openai_service_1 = require("../openai/openai.service");
 const stylebart_service_1 = require("../stylebart/stylebart.service");
 const timer_1 = require("../util/timer");
-const exampleMessage_1 = require("../util/exampleMessage");
 const judge_trigger_1 = require("../util/judge-trigger");
 let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
     isDuplicateMessage(sessionId, text, windowMs = 3000) {
@@ -107,7 +106,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 { role: "system", content: systemPrompt },
                 { role: "user", content: session.theme },
             ], "gpt-4o-mini"));
-            const startMessage = `ディベートを開始します。テーマは「${session.theme}」です。3ターン、各10秒で進行します。右が${result.right}、左が${result.left}の立場で行います。先行は右側です。`;
+            const startMessage = `ディベートを開始します。テーマは「${session.theme}」です。3ターン、各15秒で進行します。右が${result.right}、左が${result.left}の立場で行います。先行は右側です。`;
             await this.aiResponseRepository.create({
                 sessionId,
                 turnIndex: 0,
@@ -155,7 +154,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 throw new Error(`Invalid turn index: ${turnIndex}`);
             }
             const sideText = side === client_1.Side.RIGHT ? "右" : "左";
-            const message = `${sideText}の方、どうぞ。10秒でお話してください。`;
+            const message = `${sideText}の方、どうぞ。15秒でお話してください。`;
             await this.aiResponseRepository.create({
                 sessionId,
                 turnIndex,
@@ -194,7 +193,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 sessionId,
                 turnIndex,
                 side,
-                duration: 2,
+                duration: 15,
             });
             this.logger.log(`Timer started for turn ${turnIndex} after audio completion in session ${sessionId}`);
             this.logger.log(`Started turn ${turnIndex} for ${side} side in session ${sessionId}`);
@@ -210,7 +209,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         this.clearTurnTimer(sessionId);
         const timeoutId = setTimeout(() => {
             this.endTurn(sessionId, turnIndex, side);
-        }, 2000);
+        }, 15000);
         const timer = {
             sessionId,
             turnIndex,
@@ -308,7 +307,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 }, 2000);
                 return;
             }
-            const rate = await this.evaluateTurn(sessionId, turnIndex, (0, exampleMessage_1.exampleUtterance)(sessionId));
+            const rate = await this.evaluateTurn(sessionId, turnIndex, utterances);
             await this.turnResultRepository.upsertTurnResult({
                 sessionId,
                 turnIndex,
@@ -327,7 +326,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 rate,
                 message,
             });
-            await (0, judge_trigger_1.judgeTrigger)((rate * 80).toString());
+            await (0, judge_trigger_1.judgeTrigger)((rate * 55).toString());
             await this.generateAndBroadcastAudio(sessionId, message);
             setTimeout(() => {
                 this.proceedToNext(sessionId, turnIndex);
@@ -478,7 +477,6 @@ ${leftText}
 スコア（数値のみ）:
 - 1.0: 右側が圧倒的に優勢
 - 0.5: 右側がやや優勢
-- 0.0: 引き分け
 - -0.5: 左側がやや優勢
 - -1.0: 左側が圧倒的に優勢
 
@@ -515,7 +513,6 @@ ${leftText}
                 const utterances = await this.utteranceRepository.findBySessionAndTurn(sessionId, turn);
                 allUtterances.push(...utterances);
             }
-            allUtterances = (0, exampleMessage_1.exampleUtterance)(sessionId);
             const rightUtterances = allUtterances.filter((u) => u.side === client_1.Side.RIGHT);
             const leftUtterances = allUtterances.filter((u) => u.side === client_1.Side.LEFT);
             const rightSummary = rightUtterances
@@ -744,8 +741,8 @@ ${turnResults.join("\n")}
     async preloadCommonAudioMessages() {
         const commonMessages = [
             "ディベートを開始します。",
-            "第1ターン、右の者、どうぞ。10秒でお話してください。",
-            "第1ターン、左の者、どうぞ。10秒でお話してください。",
+            "第1ターン、右の者、どうぞ。15秒でお話してください。",
+            "第1ターン、左の者、どうぞ。15秒でお話してください。",
             "時間終了です。",
             "ターンが終了しました。",
             "判定中です。しばらくお待ちください。",

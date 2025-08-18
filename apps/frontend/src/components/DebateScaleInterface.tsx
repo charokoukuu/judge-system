@@ -352,9 +352,9 @@ export default function DebateScaleInterface() {
 
       {/* ヘッダー */}
       <header className="p-6 text-center relative z-10">
-        <h1 className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-pink-300 to-purple-300 mb-4 drop-shadow-lg">
+        {/* <h1 className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-pink-300 to-purple-300 mb-4 drop-shadow-lg">
           ✨ 魔法の天秤 ✨
-        </h1>
+        </h1> */}
         <div className="text-lg text-purple-200 mb-2 font-serif italic">
           〜 Ancient Scale of Truth 〜
         </div>

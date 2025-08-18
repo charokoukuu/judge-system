@@ -168,7 +168,7 @@ export class DebateSessionService {
       );
 
       // 開始アナウンスを作成
-      const startMessage = `ディベートを開始します。テーマは「${session.theme}」です。3ターン、各10秒で進行します。右が${result.right}、左が${result.left}の立場で行います。先行は右側です。`;
+      const startMessage = `ディベートを開始します。テーマは「${session.theme}」です。3ターン、各15秒で進行します。右が${result.right}、左が${result.left}の立場で行います。先行は右側です。`;
 
       // AIアナウンスを保存
       await this.aiResponseRepository.create({
@@ -232,7 +232,7 @@ export class DebateSessionService {
       }
 
       const sideText = side === Side.RIGHT ? "右" : "左";
-      const message = `${sideText}の方、どうぞ。10秒でお話してください。`;
+      const message = `${sideText}の方、どうぞ。15秒でお話してください。`;
 
       // AIアナウンスを保存
       await this.aiResponseRepository.create({
@@ -288,8 +288,8 @@ export class DebateSessionService {
           sessionId,
           turnIndex,
           side,
-          // DEBUG: 10秒に戻す
-          duration: 2,
+          // DEBUG: 15秒に戻す
+          duration: 15,
         }
       );
 
@@ -317,8 +317,8 @@ export class DebateSessionService {
 
     const timeoutId = setTimeout(() => {
       this.endTurn(sessionId, turnIndex, side);
-      // DEBUG: 10秒に戻す
-    }, 2000); // 10秒
+      // DEBUG: 15秒に戻す
+    }, 15000); // 15秒
 
     const timer: TurnTimer = {
       sessionId,
@@ -469,11 +469,7 @@ export class DebateSessionService {
 
       // AIで評価を実行
       // DEBUG: 実際のメッセージに直す
-      const rate = await this.evaluateTurn(
-        sessionId,
-        turnIndex,
-        exampleUtterance(sessionId)
-      );
+      const rate = await this.evaluateTurn(sessionId, turnIndex, utterances);
 
       // 評価結果を保存
       await this.turnResultRepository.upsertTurnResult({
@@ -499,7 +495,7 @@ export class DebateSessionService {
         message,
       });
 
-      await judgeTrigger((rate * 80).toString());
+      await judgeTrigger((rate * 55).toString());
 
       await this.generateAndBroadcastAudio(sessionId, message);
 
@@ -730,7 +726,6 @@ ${leftText}
 スコア（数値のみ）:
 - 1.0: 右側が圧倒的に優勢
 - 0.5: 右側がやや優勢
-- 0.0: 引き分け
 - -0.5: 左側がやや優勢
 - -1.0: 左側が圧倒的に優勢
 
@@ -782,7 +777,7 @@ ${leftText}
       }
 
       // DEBUG: 後で消して定数にする
-      allUtterances = exampleUtterance(sessionId);
+      // allUtterances = exampleUtterance(sessionId);
       // 右と左の発話を分類・整理
       const rightUtterances = allUtterances.filter(
         (u) => u.side === Side.RIGHT
@@ -1127,8 +1122,8 @@ ${turnResults.join("\n")}
   async preloadCommonAudioMessages(): Promise<void> {
     const commonMessages = [
       "ディベートを開始します。",
-      "第1ターン、右の者、どうぞ。10秒でお話してください。",
-      "第1ターン、左の者、どうぞ。10秒でお話してください。",
+      "第1ターン、右の者、どうぞ。15秒でお話してください。",
+      "第1ターン、左の者、どうぞ。15秒でお話してください。",
       "時間終了です。",
       "ターンが終了しました。",
       "判定中です。しばらくお待ちください。",
