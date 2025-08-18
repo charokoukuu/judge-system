@@ -2,18 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-}
+/* ハリーポッター風のGoogle Fonts */
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cinzel+Decorative:wght@400;700&display=swap");
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 0, 0, 0;
+  --background-end-rgb: 0, 0, 0;
 }
 
 body {
@@ -24,6 +19,7 @@ body {
       rgb(var(--background-end-rgb))
     )
     rgb(var(--background-start-rgb));
+  font-family: "Cinzel", serif;
 }
 
 @layer utilities {
@@ -32,7 +28,7 @@ body {
   }
 }
 
-/* 魔法のアニメーション */
+/* ハリーポッター風魔法のアニメーション */
 @keyframes spin-slow {
   from {
     transform: rotate(0deg);
@@ -82,6 +78,20 @@ body {
   }
 }
 
+@keyframes mystical-glow {
+  0%,
+  100% {
+    text-shadow:
+      0 0 10px rgba(251, 191, 36, 0.5),
+      0 0 20px rgba(251, 191, 36, 0.3);
+  }
+  50% {
+    text-shadow:
+      0 0 20px rgba(251, 191, 36, 0.8),
+      0 0 30px rgba(251, 191, 36, 0.5);
+  }
+}
+
 .animate-spin-slow {
   animation: spin-slow 3s linear infinite;
 }
@@ -100,4 +110,34 @@ body {
 
 .animate-sweep {
   animation: sweep 2s ease-in-out infinite;
+}
+
+.animate-mystical-glow {
+  animation: mystical-glow 2s ease-in-out infinite;
+}
+
+/* ハリーポッター風のテキストスタイル */
+.font-serif {
+  font-family: "Cinzel", serif;
+}
+
+.magic-subtitle {
+  animation: mystical-glow 3s ease-in-out infinite;
+}
+
+/* ホグワーツ風のカスタムカラー */
+.text-gryffindor {
+  color: #740001;
+}
+
+.text-slytherin {
+  color: #1a472a;
+}
+
+.text-ravenclaw {
+  color: #0e1a40;
+}
+
+.text-hufflepuff {
+  color: #ecb939;
 }
