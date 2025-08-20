@@ -8,7 +8,9 @@ export default function DebateScaleInterface() {
   const [debateTheme, setDebateTheme] = useState("");
   const [isDebateStarted, setIsDebateStarted] = useState(false);
   const [currentScore, setCurrentScore] = useState(0); // -1 to 1, 左(-1) ← → 右(1)
-  const [aiSubtitle, setAiSubtitle] = useState("AIジャッジの準備ができました");
+  const [aiSubtitle, setAiSubtitle] = useState(
+    "魔法の天秤の準備が整ったのじゃ。真実を見極める時じゃぞい。"
+  );
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isCountdownActive, setIsCountdownActive] = useState(false);
   const [lastProcessedTimestamp, setLastProcessedTimestamp] = useState<
@@ -593,8 +595,9 @@ export default function DebateScaleInterface() {
 
             {/* 魔法の録音状態表示 */}
             <div className="flex justify-center space-x-6">
-              <div className="relative">
-                <div
+              <div className="h-[5rem]"></div>
+              {/* <div className="relative"> */}
+              {/* <div
                   className={`
                     w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold transition-all relative overflow-hidden
                     ${
@@ -611,8 +614,8 @@ export default function DebateScaleInterface() {
                       <div className="absolute -inset-2 border-4 border-red-400/50 rounded-full animate-ping"></div>
                     </>
                   )}
-                </div>
-              </div>
+                </div> */}
+              {/* </div> */}
 
               {/* 録音状態表示 */}
               {isRecordingAudio && (

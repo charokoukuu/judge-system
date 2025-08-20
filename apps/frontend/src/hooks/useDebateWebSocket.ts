@@ -347,7 +347,7 @@ export const useDebateWebSocket = () => {
     // ターン終了イベント（バックエンドから送信される場合）
     socket.on("turn:ended", (data: any) => {
       console.log("Turn ended:", data);
-      addMessage(`ターン${data.turnIndex}が終了しました`, "system");
+      // addMessage(`ターン${data.turnIndex}が終了しました`, "system");
 
       // 録音停止イベントを発火
       setRecordingStopEvent({

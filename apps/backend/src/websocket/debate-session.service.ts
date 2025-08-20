@@ -168,7 +168,7 @@ export class DebateSessionService {
       );
 
       // 開始アナウンスを作成
-      const startMessage = `ディベートを開始します。テーマは「${session.theme}」です。3ターン、各15秒で進行します。右が${result.right}、左が${result.left}の立場で行います。先行は右側です。`;
+      const startMessage = `魔法の天秤が真実を測る時が来たのじゃ。議題は「${session.theme}」じゃ。3回の弁論で真理を探るのじゃ。太陽の皿は${result.right}、月の皿は${result.left}の立場を担うのじゃ。まずは太陽の代弁者から、15秒で聞かせてくれい。`;
 
       // AIアナウンスを保存
       await this.aiResponseRepository.create({
@@ -195,7 +195,7 @@ export class DebateSessionService {
         `Failed to start session ${sessionId}: ${error.message}`
       );
       this.wsConnection.broadcastToSession(sessionId, "error", {
-        message: `セッション開始に失敗しました: ${error.message}`,
+        message: `セッション開始でエラーが発生しました: ${error.message}`,
       });
     }
   }
@@ -231,8 +231,8 @@ export class DebateSessionService {
         throw new Error(`Invalid turn index: ${turnIndex}`);
       }
 
-      const sideText = side === Side.RIGHT ? "右" : "左";
-      const message = `${sideText}の方、どうぞ。15秒でお話してください。`;
+      const sideText = side === Side.RIGHT ? "太陽の皿" : "月の皿";
+      const message = `${sideText}の方、どうぞ話してくれい。15秒でお聞かせくだされ。`;
 
       // AIアナウンスを保存
       await this.aiResponseRepository.create({
@@ -245,8 +245,8 @@ export class DebateSessionService {
         await judgeTrigger("0");
         const turnMessage =
           turnIndex === 3
-            ? "最終弁論です。内容をまとめてください。"
-            : `第${turnIndex}ターン`;
+            ? "最後の弁論じゃ。これまでの議論をまとめて話してくれい。"
+            : `第${turnIndex}回目の弁論を始めるのじゃ。`;
         await this.generateAndBroadcastAudioSync(sessionId, turnMessage, () => {
           this.wsConnection.broadcastToSession(sessionId, "turn:started", {
             sessionId,
@@ -273,7 +273,7 @@ export class DebateSessionService {
         this.wsConnection.sendToSessionSide(sessionId, side, "turn:your_turn", {
           turnIndex,
           duration: 30,
-          message: "あなたの発話時間です",
+          message: "おぬしの発言の時間じゃ。どうぞ話してくれい。",
         });
       });
 
@@ -303,7 +303,7 @@ export class DebateSessionService {
     } catch (error) {
       this.logger.error(`Failed to start turn: ${error.message}`);
       this.wsConnection.broadcastToSession(sessionId, "error", {
-        message: `ターン開始に失敗しました: ${error.message}`,
+        message: `弁論開始でエラーが発生しました: ${error.message}`,
       });
     }
   }
@@ -357,7 +357,7 @@ export class DebateSessionService {
       this.wsConnection.sendToSessionSide(sessionId, side, "turn:time_up", {
         turnIndex,
         side,
-        message: "時間終了です",
+        message: "時間になったのじゃ。ご苦労であった。",
       });
 
       this.wsConnection.broadcastToSession(sessionId, "turn:ended", {
@@ -484,7 +484,7 @@ export class DebateSessionService {
 
       console.log("評価： ", rate);
 
-      const message = `第${turnIndex}ターンの評価が完了しました。`;
+      const message = `第${turnIndex}回目の弁論の評価が完了したのじゃ。`;
 
       await this.aiResponseRepository.create({
         sessionId,
@@ -514,7 +514,7 @@ export class DebateSessionService {
     } catch (error) {
       this.logger.error(`Failed to wrap up turn: ${error.message}`);
       this.wsConnection.broadcastToSession(sessionId, "error", {
-        message: `ターン評価に失敗しました: ${error.message}`,
+        message: `弁論評価でエラーが発生しました: ${error.message}`,
       });
     }
   }
@@ -548,7 +548,8 @@ export class DebateSessionService {
       await this.sessionRepository.updateState(sessionId, SessionState.JUDGING);
       this.wsConnection.updateSessionState(sessionId, SessionState.JUDGING);
 
-      const message = "全ての発言が出揃いました。最終判定を行います。";
+      const message =
+        "全ての弁論が終了したのじゃ。魔法の天秤で最終的な判定を行うぞい。";
 
       await this.aiResponseRepository.create({
         sessionId,
@@ -578,7 +579,7 @@ export class DebateSessionService {
     } catch (error) {
       this.logger.error(`Failed to start final judgment: ${error.message}`);
       this.wsConnection.broadcastToSession(sessionId, "error", {
-        message: `最終判定に失敗しました: ${error.message}`,
+        message: `最終判定でエラーが発生しました: ${error.message}`,
       });
     }
   }
@@ -595,8 +596,8 @@ export class DebateSessionService {
       await this.sessionRepository.updateState(sessionId, SessionState.VERDICT);
       this.wsConnection.updateSessionState(sessionId, SessionState.VERDICT);
 
-      const winnerText = winner === Winner.RIGHT ? "右" : "左";
-      const message = `判定結果を発表します。勝者は${winnerText}の者です。${rationale}`;
+      const winnerText = winner === Winner.RIGHT ? "太陽の皿" : "月の皿";
+      const message = `魔法の天秤による判定の結果を発表するのじゃ。勝者は${winnerText}じゃ。${rationale}`;
 
       await this.aiResponseRepository.create({
         sessionId,
@@ -635,7 +636,7 @@ export class DebateSessionService {
       this.clearTurnTimer(sessionId);
 
       const message =
-        "ディベートセッションが終了しました。おつかれさまでした。";
+        "魔法の天秤による弁論が終了したのじゃ。みなさん、ご苦労であった。";
 
       await this.generateAndBroadcastAudioSync(sessionId, message, async () => {
         this.wsConnection.broadcastToSession(sessionId, "session:finished", {
@@ -1134,12 +1135,12 @@ ${turnResults.join("\n")}
    */
   async preloadCommonAudioMessages(): Promise<void> {
     const commonMessages = [
-      "ディベートを開始します。",
-      "第1ターン、右の者、どうぞ。15秒でお話してください。",
-      "第1ターン、左の者、どうぞ。15秒でお話してください。",
-      "時間終了です。",
-      "ターンが終了しました。",
-      "判定中です。しばらくお待ちください。",
+      "魔法の天秤が真実を測る時が来たのじゃ。",
+      "第1回目の弁論を始めるのじゃ。太陽の皿の方、15秒で話してくれい。",
+      "第1回目の弁論を始めるのじゃ。月の皿の方、15秒で話してくれい。",
+      "時間になったのじゃ。ご苦労であった。",
+      "この回の弁論は終了じゃ。",
+      "魔法の天秤で評価中じゃ。少々待つのじゃ。",
     ];
 
     // バックグラウンドで事前生成（エラーは無視）
