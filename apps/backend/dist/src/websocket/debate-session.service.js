@@ -18,6 +18,7 @@ const client_1 = require("@prisma/client");
 const openai_service_1 = require("../openai/openai.service");
 const stylebart_service_1 = require("../stylebart/stylebart.service");
 const timer_1 = require("../util/timer");
+const exampleMessage_1 = require("../util/exampleMessage");
 const judge_trigger_1 = require("../util/judge-trigger");
 let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
     isDuplicateMessage(sessionId, text, windowMs = 3000) {
@@ -76,6 +77,8 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             if (session.state !== client_1.SessionState.IDLE) {
                 throw new Error(`Session ${sessionId} is not in IDLE state`);
             }
+            this.startTurn(sessionId, 3, client_1.Side.LEFT);
+            return;
             await this.sessionRepository.updateState(sessionId, client_1.SessionState.READY);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.READY);
             const systemPrompt = `
@@ -193,7 +196,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 sessionId,
                 turnIndex,
                 side,
-                duration: 15,
+                duration: 2,
             });
             this.logger.log(`Timer started for turn ${turnIndex} after audio completion in session ${sessionId}`);
             this.logger.log(`Started turn ${turnIndex} for ${side} side in session ${sessionId}`);
@@ -209,7 +212,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         this.clearTurnTimer(sessionId);
         const timeoutId = setTimeout(() => {
             this.endTurn(sessionId, turnIndex, side);
-        }, 15000);
+        }, 2000);
         const timer = {
             sessionId,
             turnIndex,
@@ -307,7 +310,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 }, 2000);
                 return;
             }
-            const rate = await this.evaluateTurn(sessionId, turnIndex, utterances);
+            const rate = await this.evaluateTurn(sessionId, turnIndex, (0, exampleMessage_1.exampleUtterance)(sessionId));
             await this.turnResultRepository.upsertTurnResult({
                 sessionId,
                 turnIndex,
@@ -320,14 +323,19 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 turnIndex,
                 text: message,
             });
-            this.wsConnection.broadcastToSession(sessionId, "turn:evaluated", {
-                sessionId,
-                turnIndex,
-                rate,
-                message,
+            if (turnIndex === 3) {
+                this.proceedToNext(sessionId, turnIndex);
+                return;
+            }
+            await this.generateAndBroadcastAudioSync(sessionId, message, async () => {
+                this.wsConnection.broadcastToSession(sessionId, "turn:evaluated", {
+                    sessionId,
+                    turnIndex,
+                    rate,
+                    message,
+                });
+                await (0, judge_trigger_1.judgeTrigger)((rate * 55).toString());
             });
-            await (0, judge_trigger_1.judgeTrigger)((rate * 55).toString());
-            await this.generateAndBroadcastAudio(sessionId, message);
             setTimeout(() => {
                 this.proceedToNext(sessionId, turnIndex);
             }, 3000);
@@ -362,12 +370,13 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 turnIndex: 3,
                 text: message,
             });
-            this.wsConnection.broadcastToSession(sessionId, "judgment:started", {
-                sessionId,
-                message,
-            });
             const verdict = await this.performFinalJudgment(sessionId);
-            await this.generateAndBroadcastAudioSync(sessionId, message);
+            await this.generateAndBroadcastAudioSync(sessionId, message, () => {
+                this.wsConnection.broadcastToSession(sessionId, "judgment:started", {
+                    sessionId,
+                    message,
+                });
+            });
             await this.verdictRepository.upsertVerdict(verdict);
             console.log(`Verdict announced for session ${sessionId}: ${JSON.stringify(verdict)}`);
             await this.announceVerdict(sessionId, verdict.winner, verdict.rationale);
@@ -413,9 +422,12 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             await this.sessionRepository.endSession(sessionId);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.FINISHED);
             this.clearTurnTimer(sessionId);
-            this.wsConnection.broadcastToSession(sessionId, "session:finished", {
-                sessionId,
-                message: "ディベートセッションが終了しました。",
+            const message = "ディベートセッションが終了しました。おつかれさまでした。";
+            await this.generateAndBroadcastAudioSync(sessionId, message, async () => {
+                this.wsConnection.broadcastToSession(sessionId, "session:finished", {
+                    sessionId,
+                    message,
+                });
             });
             this.logger.log(`Session ${sessionId} finished`);
         }
@@ -513,6 +525,7 @@ ${leftText}
                 const utterances = await this.utteranceRepository.findBySessionAndTurn(sessionId, turn);
                 allUtterances.push(...utterances);
             }
+            allUtterances = (0, exampleMessage_1.exampleUtterance)(sessionId);
             const rightUtterances = allUtterances.filter((u) => u.side === client_1.Side.RIGHT);
             const leftUtterances = allUtterances.filter((u) => u.side === client_1.Side.LEFT);
             const rightSummary = rightUtterances

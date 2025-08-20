@@ -127,9 +127,9 @@ export class DebateSessionService {
 
       // セッション状態をREADYに更新
       // DEBUG: IDLEに戻す
-      // this.startTurn(sessionId, 1, Side.RIGHT);
+      this.startTurn(sessionId, 3, Side.LEFT);
 
-      // return;
+      return;
       await this.sessionRepository.updateState(sessionId, SessionState.READY);
       this.wsConnection.updateSessionState(sessionId, SessionState.READY);
       const systemPrompt = `
@@ -289,7 +289,7 @@ export class DebateSessionService {
           turnIndex,
           side,
           // DEBUG: 15秒に戻す
-          duration: 15,
+          duration: 2,
         }
       );
 
@@ -318,7 +318,7 @@ export class DebateSessionService {
     const timeoutId = setTimeout(() => {
       this.endTurn(sessionId, turnIndex, side);
       // DEBUG: 15秒に戻す
-    }, 15000); // 15秒
+    }, 2000); // 15秒
 
     const timer: TurnTimer = {
       sessionId,
@@ -469,7 +469,11 @@ export class DebateSessionService {
 
       // AIで評価を実行
       // DEBUG: 実際のメッセージに直す
-      const rate = await this.evaluateTurn(sessionId, turnIndex, utterances);
+      const rate = await this.evaluateTurn(
+        sessionId,
+        turnIndex,
+        exampleUtterance(sessionId)
+      );
 
       // 評価結果を保存
       await this.turnResultRepository.upsertTurnResult({
@@ -488,16 +492,20 @@ export class DebateSessionService {
         text: message,
       });
 
-      this.wsConnection.broadcastToSession(sessionId, "turn:evaluated", {
-        sessionId,
-        turnIndex,
-        rate,
-        message,
+      if (turnIndex === 3) {
+        this.proceedToNext(sessionId, turnIndex);
+        return;
+      }
+
+      await this.generateAndBroadcastAudioSync(sessionId, message, async () => {
+        this.wsConnection.broadcastToSession(sessionId, "turn:evaluated", {
+          sessionId,
+          turnIndex,
+          rate,
+          message,
+        });
+        await judgeTrigger((rate * 55).toString());
       });
-
-      await judgeTrigger((rate * 55).toString());
-
-      await this.generateAndBroadcastAudio(sessionId, message);
 
       // 次のステップに進む
       setTimeout(() => {
@@ -548,15 +556,15 @@ export class DebateSessionService {
         text: message,
       });
 
-      this.wsConnection.broadcastToSession(sessionId, "judgment:started", {
-        sessionId,
-        message,
-      });
-
       // // 判定処理を実行
       const verdict = await this.performFinalJudgment(sessionId);
 
-      await this.generateAndBroadcastAudioSync(sessionId, message);
+      await this.generateAndBroadcastAudioSync(sessionId, message, () => {
+        this.wsConnection.broadcastToSession(sessionId, "judgment:started", {
+          sessionId,
+          message,
+        });
+      });
 
       // // 判定結果を保存
       await this.verdictRepository.upsertVerdict(verdict);
@@ -626,9 +634,14 @@ export class DebateSessionService {
 
       this.clearTurnTimer(sessionId);
 
-      this.wsConnection.broadcastToSession(sessionId, "session:finished", {
-        sessionId,
-        message: "ディベートセッションが終了しました。",
+      const message =
+        "ディベートセッションが終了しました。おつかれさまでした。";
+
+      await this.generateAndBroadcastAudioSync(sessionId, message, async () => {
+        this.wsConnection.broadcastToSession(sessionId, "session:finished", {
+          sessionId,
+          message,
+        });
       });
 
       this.logger.log(`Session ${sessionId} finished`);
@@ -777,7 +790,7 @@ ${leftText}
       }
 
       // DEBUG: 後で消して定数にする
-      // allUtterances = exampleUtterance(sessionId);
+      allUtterances = exampleUtterance(sessionId);
       // 右と左の発話を分類・整理
       const rightUtterances = allUtterances.filter(
         (u) => u.side === Side.RIGHT
