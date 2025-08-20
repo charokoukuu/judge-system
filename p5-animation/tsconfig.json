@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ESNext", // モダンなJSにコンパイル
+    "module": "ESNext", // ViteやNext.jsならESM
+    "moduleResolution": "Node",
+    "strict": true, // 厳格モード
+    "esModuleInterop": true, // import互換
+    "skipLibCheck": true, // 型チェック軽量化
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "src"
+  ], // src 配下をTS対象に
+  "exclude": [
+    "node_modules"
+  ]
+}

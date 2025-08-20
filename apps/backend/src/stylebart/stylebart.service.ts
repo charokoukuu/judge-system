@@ -59,6 +59,20 @@ export class StylebartService {
         speaker: "kinichiro-asamoto",
       };
 
+      // const synthesisRequest = {
+      //   model: "Anneli",
+      //   modelFile: "model_assets/Anneli/Anneli_e116_s32000.safetensors",
+      //   text: text,
+      //   moraToneList: moraToneList,
+      //   style: "Neutral",
+      //   styleWeight: 1.0,
+      //   speed: 1.0,
+      //   noise: 0.6,
+      //   noisew: 0.8,
+      //   language: "JP",
+      //   speaker: "Anneli",
+      // };
+
       const response = await axios.post<ArrayBuffer>(
         `${this.apiUrl}/api/synthesis`,
         synthesisRequest,
