@@ -549,16 +549,16 @@ export default function DebateScaleInterface() {
                     <div className="flex justify-center space-x-6">
                       {Object.entries(turnResults).map(([turnIndex, score]) => (
                         <div key={turnIndex} className="text-center">
-                          <div className="text-xs text-purple-300 mb-1">
+                          <div className="text-xs text-gradient-gem mb-1 drop-shadow-gem">
                             第{turnIndex}章
                           </div>
                           <div
                             className={`text-lg font-bold ${
                               score > 0
-                                ? "text-blue-300"
+                                ? "text-gradient-silver drop-shadow-silver"
                                 : score < 0
-                                  ? "text-red-300"
-                                  : "text-gray-300"
+                                  ? "text-gradient-gold drop-shadow-gold"
+                                  : "text-gradient-gem drop-shadow-gem"
                             }`}
                           >
                             {score > 0 ? "☀️" : score < 0 ? "🌙" : "⚖️"}
