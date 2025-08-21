@@ -22,6 +22,8 @@ export default function DebateScaleInterface() {
   const [lastDisplayedMessage, setLastDisplayedMessage] = useState<
     string | null
   >(null);
+  const [showFinalResult, setShowFinalResult] = useState(false); // 最終結果表示フラグ
+  const [isSessionFinished, setIsSessionFinished] = useState(false); // セッション終了フラグ
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
@@ -34,6 +36,7 @@ export default function DebateScaleInterface() {
     turnResults,
     isJudging,
     judgingMessage,
+    verdict,
     createSession,
     startSession,
     sendAudioStart,
@@ -203,6 +206,30 @@ export default function DebateScaleInterface() {
     }
   }, [session?.state, session?.currentTurn, turnResults, stopCountdown]);
 
+  // 判定結果が出たら1秒後に最終結果を表示
+  useEffect(() => {
+    if (verdict && !showFinalResult) {
+      const timer = setTimeout(() => {
+        setShowFinalResult(true);
+      }, 4000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [verdict, showFinalResult]);
+
+  // セッション終了時に天秤をリセット
+  useEffect(() => {
+    if (session?.state === "FINISHED" && !isSessionFinished) {
+      const timer = setTimeout(() => {
+        setIsSessionFinished(true);
+        setCurrentScore(0); // 天秤を中央に戻す
+        setShowFinalResult(false); // 最終結果表示をリセット
+      }, 2000); // 2秒後にリセット
+
+      return () => clearTimeout(timer);
+    }
+  }, [session?.state, isSessionFinished]);
+
   // カウントダウンイベントに基づいてカウントダウン開始と自動録音
   useEffect(() => {
     console.log("[DEBUG] カウントダウンイベント処理:", {
@@ -316,8 +343,23 @@ export default function DebateScaleInterface() {
     console.log(
       "Manual mic toggle disabled - recording is controlled by countdown"
     );
-  }; // 天秤の傾きを計算（-45度から+45度）
-  const scaleRotation = currentScore * 45;
+  };
+
+  // 天秤の傾きを計算（-45度から+45度、最終判定後は-45度から+45度、セッション終了時は0度）
+  const getScaleRotation = () => {
+    // セッション終了時は中央に戻す
+    if (isSessionFinished) {
+      return 0;
+    }
+    // 最終判定後かつ1秒経過後は勝者の方向に大きく傾ける
+    if (verdict && showFinalResult) {
+      return verdict.winner === "RIGHT" ? 20 : -20; // 右勝利で+45度、左勝利で-45度
+    }
+    // 通常時は現在のスコアに基づいて傾ける
+    return currentScore * 45;
+  };
+
+  const scaleRotation = getScaleRotation();
 
   // 皿のサイズを計算（発言中は該当する皿を大きく表示）
   const getPlateSize = (side: "LEFT" | "RIGHT") => {
@@ -504,14 +546,20 @@ export default function DebateScaleInterface() {
                 {/* 魔法の天秤アーム */}
                 <div className="relative flex justify-center">
                   <div
-                    className={`w-96 h-3 bg-gradient-to-r from-silver-400 via-silver-300 to-silver-400 rounded-full transition-transform duration-700 shadow-lg border border-gray-300 ${
-                      isJudging ? "animate-pulse" : ""
+                    className={`w-96 h-3 bg-gradient-to-r from-silver-400 via-silver-300 to-silver-400 rounded-full shadow-lg border border-gray-300 ${
+                      isJudging && !verdict ? "animate-pulse" : ""
                     }`}
                     style={{
                       transform: `rotate(${scaleRotation}deg)`,
-                      animation: isJudging
-                        ? "judgmentSpin 3s ease-in-out infinite"
-                        : undefined,
+                      animation:
+                        isJudging && !verdict
+                          ? "judgmentSpin 3s ease-in-out infinite"
+                          : undefined,
+                      transition: isSessionFinished
+                        ? "transform 3s ease-in-out"
+                        : showFinalResult
+                          ? "transform 2s ease-out"
+                          : "transform 0.7s ease-in-out",
                     }}
                   >
                     {/* 左の魔法皿 */}
@@ -571,15 +619,45 @@ export default function DebateScaleInterface() {
                     〜 真実の天秤の示し 〜
                   </div>
                   <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-pink-300 to-purple-300 drop-shadow-lg">
-                    {currentScore > 0
-                      ? "☀️ 太陽の勝利"
-                      : currentScore < 0
-                        ? "🌙 月の勝利"
-                        : "⚖️ 均衡"}
-                    {currentScore !== 0 && (
-                      <span className="text-2xl ml-2 text-purple-200">
-                        ({Math.abs(currentScore * 100).toFixed(0)}%)
-                      </span>
+                    {isSessionFinished ? (
+                      // セッション終了後の表示
+                      <>
+                        ⚖️ 議論終了
+                        <div className="text-lg mt-2 text-purple-300">
+                          〜 真実の探求完了 〜
+                        </div>
+                      </>
+                    ) : verdict && showFinalResult ? (
+                      // 最終判定後の表示（1秒遅延後）
+                      verdict.winner === "RIGHT" ? (
+                        <>
+                          ☀️ 太陽の勝利
+                          <div className="text-lg mt-2 text-yellow-300">
+                            〜 最終判定 〜
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          🌙 月の勝利
+                          <div className="text-lg mt-2 text-blue-300">
+                            〜 最終判定 〜
+                          </div>
+                        </>
+                      )
+                    ) : (
+                      // 通常時の表示
+                      <>
+                        {currentScore > 0
+                          ? "☀️ 太陽の勝利"
+                          : currentScore < 0
+                            ? "🌙 月の勝利"
+                            : "⚖️ 均衡"}
+                        {currentScore !== 0 && (
+                          <span className="text-2xl ml-2 text-purple-200">
+                            ({Math.abs(currentScore * 100).toFixed(0)}%)
+                          </span>
+                        )}
+                      </>
                     )}
                   </div>
 
@@ -614,6 +692,20 @@ export default function DebateScaleInterface() {
                           )
                         )}
                       </div>
+                    </div>
+                  )}
+
+                  {/* 最終判定の理由 */}
+                  {verdict && showFinalResult && (
+                    <div className="mt-6 text-sm text-purple-200">
+                      <div className="text-center mb-3 text-purple-300 font-serif italic">
+                        〜 賢者の託宣 〜
+                      </div>
+                      {/* <div className="bg-gradient-to-br from-purple-900/50 to-indigo-900/50 backdrop-blur-sm rounded-xl border border-purple-400/30 p-4 mx-auto max-w-lg">
+                        <p className="text-center leading-relaxed">
+                          {verdict.rationale}
+                        </p>
+                      </div> */}
                     </div>
                   )}
                 </div>

@@ -63,6 +63,13 @@ export const useDebateWebSocket = () => {
   const [isJudging, setIsJudging] = useState(false);
   const [judgingMessage, setJudgingMessage] = useState<string>("");
 
+  // 判定結果状態
+  const [verdict, setVerdict] = useState<{
+    winner: "RIGHT" | "LEFT";
+    rationale: string;
+    message: string;
+  } | null>(null);
+
   // デバッグ用：状態変更を監視
   useEffect(() => {
     console.log(
@@ -446,6 +453,11 @@ export const useDebateWebSocket = () => {
     // 判定結果
     socket.on("verdict:announced", (data: any) => {
       console.log("Verdict announced:", data);
+      setVerdict({
+        winner: data.winner,
+        rationale: data.rationale,
+        message: data.message,
+      });
       addMessage(data.message, "moderator");
     });
 
@@ -585,6 +597,7 @@ export const useDebateWebSocket = () => {
     turnResults,
     isJudging,
     judgingMessage,
+    verdict,
     createSession,
     joinSession,
     startSession,
