@@ -1004,9 +1004,9 @@ export default function DebateScaleInterface() {
                       // セッション終了後の表示
                       <>
                         ⚖️ 議論終了
-                        <div className="text-lg mt-2 text-purple-300">
+                        {/* <div className="text-lg mt-2 text-purple-300">
                           〜 真実の探求完了 〜
-                        </div>
+                        </div> */}
                       </>
                     ) : verdict && showFinalResult ? (
                       // 最終判定後の表示（1秒遅延後）
@@ -1079,9 +1079,9 @@ export default function DebateScaleInterface() {
                   {/* 最終判定の理由 */}
                   {verdict && showFinalResult && (
                     <div className="mt-6 text-sm text-purple-200">
-                      <div className="text-center mb-3 text-purple-300 font-serif italic">
+                      {/* <div className="text-center mb-3 text-purple-300 font-serif italic">
                         〜 賢者の託宣 〜
-                      </div>
+                      </div> */}
                       {/* <div className="bg-gradient-to-br from-purple-900/50 to-indigo-900/50 backdrop-blur-sm rounded-xl border border-purple-400/30 p-4 mx-auto max-w-lg">
                         <p className="text-center leading-relaxed">
                           {verdict.rationale}
