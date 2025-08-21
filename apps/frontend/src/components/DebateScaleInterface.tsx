@@ -415,6 +415,69 @@ export default function DebateScaleInterface() {
           }
         }
 
+        @keyframes milky-way-flow {
+          0% {
+            transform: translateY(120vh) translateX(-3px);
+            opacity: 0;
+          }
+          10% {
+            opacity: 0.6;
+          }
+          90% {
+            opacity: 0.6;
+          }
+          100% {
+            transform: translateY(-20vh) translateX(3px);
+            opacity: 0;
+          }
+        }
+
+        @keyframes milky-way-flow-reverse {
+          0% {
+            transform: translateY(120vh) translateX(3px);
+            opacity: 0;
+          }
+          10% {
+            opacity: 0.6;
+          }
+          90% {
+            opacity: 0.6;
+          }
+          100% {
+            transform: translateY(-20vh) translateX(-3px);
+            opacity: 0;
+          }
+        }
+
+        @keyframes milky-way-flow-smooth {
+          0% {
+            transform: translateY(120vh);
+            opacity: 0;
+          }
+          15% {
+            opacity: 0.8;
+          }
+          85% {
+            opacity: 0.8;
+          }
+          100% {
+            transform: translateY(-20vh);
+            opacity: 0;
+          }
+        }
+
+        @keyframes star-twinkle {
+          0%,
+          100% {
+            opacity: 0.3;
+            transform: scale(0.8);
+          }
+          50% {
+            opacity: 1;
+            transform: scale(1.2);
+          }
+        }
+
         .animate-spin-slow {
           animation: spin-slow 20s linear infinite;
         }
@@ -446,6 +509,153 @@ export default function DebateScaleInterface() {
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           {/* 星空エフェクト */}
           <div className="absolute inset-0 bg-[radial-gradient(white_1px,transparent_1px)] bg-[length:50px_50px] opacity-30 animate-pulse"></div>
+
+          {/* ローディング中の天の川アニメーション */}
+          {isJudging && (
+            <>
+              {/* メイン天の川ストリーム - 中央左寄り */}
+              <div className="absolute left-1/2 top-0 w-48 h-full transform -translate-x-24">
+                {Array.from({ length: 40 }).map((_, i) => (
+                  <div
+                    key={`milky-main-${i}`}
+                    className="absolute rounded-full bg-gradient-radial from-cyan-200 via-cyan-400 to-transparent"
+                    style={{
+                      width: `${6 + Math.sin(i) * 4}px`,
+                      height: `${12 + Math.cos(i) * 8}px`,
+                      animation: `milky-way-flow ${2.5 + i * 0.03}s linear infinite`,
+                      animationDelay: `${i * 0.02}s`,
+                      top: `calc(-20vh + ${i * 2.5}%)`,
+                      left: `${Math.sin(i * 0.5) * 30 + Math.random() * 20}px`,
+                      filter: "blur(1px)",
+                      boxShadow: "0 0 8px rgba(34, 211, 238, 0.4)",
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* セカンダリ天の川ストリーム - 中央右寄り */}
+              <div className="absolute right-1/2 top-0 w-44 h-full transform translate-x-16">
+                {Array.from({ length: 35 }).map((_, i) => (
+                  <div
+                    key={`milky-secondary-${i}`}
+                    className="absolute rounded-full bg-gradient-radial from-blue-200 via-blue-300 to-transparent"
+                    style={{
+                      width: `${5 + Math.cos(i) * 3}px`,
+                      height: `${10 + Math.sin(i) * 6}px`,
+                      animation: `milky-way-flow-reverse ${2.3 + i * 0.02}s linear infinite`,
+                      animationDelay: `${i * 0.025}s`,
+                      top: `calc(-20vh + ${i * 2.8}%)`,
+                      left: `${Math.cos(i * 0.7) * 25 + Math.random() * 15}px`,
+                      filter: "blur(0.8px)",
+                      boxShadow: "0 0 6px rgba(59, 130, 246, 0.3)",
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* 中央コア密集パーティクル */}
+              <div className="absolute left-1/2 top-0 w-32 h-full transform -translate-x-16">
+                {Array.from({ length: 60 }).map((_, i) => (
+                  <div
+                    key={`milky-core-${i}`}
+                    className="absolute rounded-full bg-gradient-radial from-cyan-300 via-cyan-400 to-cyan-200"
+                    style={{
+                      width: `${4 + Math.sin(i * 0.8) * 2}px`,
+                      height: `${8 + Math.cos(i * 0.8) * 4}px`,
+                      animation: `milky-way-flow-smooth ${2.8 + i * 0.02}s linear infinite`,
+                      animationDelay: `${i * 0.015}s`,
+                      top: `calc(-20vh + ${i * 1.6}%)`,
+                      left: `${Math.sin(i * 0.4) * 20 + Math.random() * 12}px`,
+                      filter: "blur(0.5px)",
+                      boxShadow: "0 0 5px rgba(34, 211, 238, 0.5)",
+                      opacity: 0.7,
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* 左側密集パーティクル */}
+              <div className="absolute left-1/2 top-0 w-40 h-full transform -translate-x-32">
+                {Array.from({ length: 45 }).map((_, i) => (
+                  <div
+                    key={`milky-left-${i}`}
+                    className="absolute rounded-full bg-gradient-radial from-cyan-100 via-cyan-300 to-transparent"
+                    style={{
+                      width: `${3 + Math.sin(i * 1.2) * 2}px`,
+                      height: `${6 + Math.cos(i * 1.2) * 3}px`,
+                      animation: `milky-way-flow ${2.6 + i * 0.02}s linear infinite`,
+                      animationDelay: `${i * 0.018}s`,
+                      top: `calc(-20vh + ${i * 2.2}%)`,
+                      left: `${Math.sin(i * 0.3) * 25 + Math.random() * 15}px`,
+                      filter: "blur(0.8px)",
+                      boxShadow: "0 0 4px rgba(103, 232, 249, 0.3)",
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* 右側密集パーティクル */}
+              <div className="absolute right-1/2 top-0 w-40 h-full transform translate-x-32">
+                {Array.from({ length: 45 }).map((_, i) => (
+                  <div
+                    key={`milky-right-${i}`}
+                    className="absolute rounded-full bg-gradient-radial from-blue-100 via-blue-300 to-transparent"
+                    style={{
+                      width: `${3 + Math.cos(i * 1.1) * 2}px`,
+                      height: `${6 + Math.sin(i * 1.1) * 3}px`,
+                      animation: `milky-way-flow-reverse ${2.4 + i * 0.02}s linear infinite`,
+                      animationDelay: `${i * 0.018}s`,
+                      top: `calc(-20vh + ${i * 2.2}%)`,
+                      left: `${Math.cos(i * 0.6) * 25 + Math.random() * 15}px`,
+                      filter: "blur(0.8px)",
+                      boxShadow: "0 0 4px rgba(147, 197, 253, 0.3)",
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* きらめく微細星のパーティクル */}
+              <div className="absolute left-1/2 top-0 w-56 h-full transform -translate-x-28">
+                {Array.from({ length: 80 }).map((_, i) => (
+                  <div
+                    key={`milky-star-${i}`}
+                    className="absolute rounded-full bg-gradient-radial from-white via-cyan-200 to-transparent"
+                    style={{
+                      width: `${1.5 + Math.random() * 1.5}px`,
+                      height: `${1.5 + Math.random() * 1.5}px`,
+                      animation: `milky-way-flow-smooth ${2.0 + i * 0.01}s linear infinite, star-twinkle ${0.5 + Math.random() * 1}s ease-in-out infinite`,
+                      animationDelay: `${i * 0.01}s`,
+                      top: `calc(-20vh + ${Math.random() * 95}%)`,
+                      left: `${Math.random() * 100}%`,
+                      filter: "blur(0.3px)",
+                      boxShadow: "0 0 3px rgba(255, 255, 255, 0.6)",
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* 超微細背景パーティクル */}
+              <div className="absolute left-1/2 top-0 w-64 h-full transform -translate-x-32">
+                {Array.from({ length: 100 }).map((_, i) => (
+                  <div
+                    key={`milky-dust-${i}`}
+                    className="absolute rounded-full bg-gradient-radial from-cyan-50 via-cyan-100 to-transparent"
+                    style={{
+                      width: `${1 + Math.random()}px`,
+                      height: `${2 + Math.random() * 2}px`,
+                      animation: `milky-way-flow-smooth ${3.0 + i * 0.01}s linear infinite`,
+                      animationDelay: `${i * 0.005}s`,
+                      top: `calc(-20vh + ${Math.random() * 98}%)`,
+                      left: `${Math.random() * 100}%`,
+                      filter: "blur(0.5px)",
+                      opacity: 0.4,
+                    }}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
           {/* 魔法の粒子エフェクト */}
           <div className="absolute top-10 left-10 w-2 h-2 bg-yellow-300 rounded-full animate-bounce opacity-70"></div>
           <div className="absolute top-20 right-20 w-1 h-1 bg-pink-300 rounded-full animate-ping opacity-60"></div>
