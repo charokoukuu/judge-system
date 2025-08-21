@@ -396,6 +396,49 @@ export default function DebateScaleInterface() {
             transform: rotate(${scaleRotation + 360}deg);
           }
         }
+
+        @keyframes spin-slow {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        @keyframes reverse-spin {
+          from {
+            transform: rotate(360deg);
+          }
+          to {
+            transform: rotate(0deg);
+          }
+        }
+
+        .animate-spin-slow {
+          animation: spin-slow 20s linear infinite;
+        }
+
+        .animate-reverse-spin {
+          animation: reverse-spin 15s linear infinite;
+        }
+
+        .bg-gradient-radial {
+          background: radial-gradient(circle, var(--tw-gradient-stops));
+        }
+
+        .border-3 {
+          border-width: 3px;
+        }
+
+        .filter {
+          filter: var(--tw-filter);
+        }
+
+        .brightness-125 {
+          --tw-brightness: brightness(1.25);
+          filter: var(--tw-brightness);
+        }
       `}</style>
 
       <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-violet-900 flex flex-col relative overflow-hidden">
@@ -516,14 +559,65 @@ export default function DebateScaleInterface() {
             <div className="w-full max-w-6xl">
               {/* 魔法の天秤デバイス表示 */}
               <div className="relative mb-12">
+                {/* 天秤周囲の魔法エフェクト */}
+                <div className="absolute inset-0 pointer-events-none">
+                  {/* 大きな魔法円 */}
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] border border-purple-400/20 rounded-full animate-spin-slow opacity-50"></div>
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] border border-dashed border-blue-400/15 rounded-full animate-reverse-spin opacity-40"></div>
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] border border-dotted border-yellow-400/20 rounded-full animate-spin-slow opacity-30"></div>
+
+                  {/* 浮遊する魔法要素 */}
+                  <div className="absolute top-20 left-20 w-2 h-2 bg-purple-400 rounded-full animate-bounce opacity-60 shadow-lg shadow-purple-400/50"></div>
+                  <div className="absolute top-32 right-24 w-1.5 h-1.5 bg-blue-400 rounded-full animate-ping opacity-50 shadow-lg shadow-blue-400/50"></div>
+                  <div className="absolute bottom-24 left-32 w-2.5 h-2.5 bg-pink-400 rounded-full animate-pulse opacity-70 shadow-lg shadow-pink-400/50"></div>
+                  <div className="absolute bottom-20 right-20 w-2 h-2 bg-yellow-400 rounded-full animate-bounce delay-500 opacity-60 shadow-lg shadow-yellow-400/50"></div>
+                  <div className="absolute top-40 left-1/2 w-1.5 h-1.5 bg-green-400 rounded-full animate-ping delay-1000 opacity-50 shadow-lg shadow-green-400/50"></div>
+                  <div className="absolute bottom-40 left-1/4 w-2 h-2 bg-cyan-400 rounded-full animate-pulse delay-1500 opacity-60 shadow-lg shadow-cyan-400/50"></div>
+                  <div className="absolute top-1/3 right-1/4 w-1.5 h-1.5 bg-red-400 rounded-full animate-bounce delay-2000 opacity-50 shadow-lg shadow-red-400/50"></div>
+
+                  {/* 魔法的なオーラ */}
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-gradient-radial from-purple-500/10 via-blue-500/5 to-transparent rounded-full animate-pulse"></div>
+                </div>
                 {/* 魔法の台座 */}
                 <div className="flex justify-center mb-6">
                   <div className="relative">
-                    <div className="w-12 h-40 bg-gradient-to-t from-yellow-600 via-yellow-500 to-yellow-400 rounded-t-lg shadow-lg border-2 border-yellow-300"></div>
-                    {/* 台座の装飾 */}
-                    <div className="absolute -bottom-2 -left-3 -right-3 h-6 bg-gradient-to-r from-yellow-700 to-yellow-600 rounded-lg border-2 border-yellow-500"></div>
-                    {/* 魔法の光 */}
-                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-16 h-16 bg-yellow-300 opacity-20 rounded-full blur-xl animate-pulse"></div>
+                    {/* メイン台座 */}
+                    <div className="w-16 h-48 bg-gradient-to-t from-yellow-700 via-yellow-500 to-yellow-300 rounded-t-xl shadow-2xl border-4 border-yellow-400 relative overflow-hidden">
+                      {/* 台座の装飾パターン */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-200/30 to-transparent animate-pulse"></div>
+                      {/* 宝石装飾 */}
+                      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-lg shadow-red-500/50"></div>
+                      <div className="absolute top-12 left-2 w-2 h-2 bg-blue-500 rounded-full animate-bounce shadow-lg shadow-blue-500/50"></div>
+                      <div className="absolute top-12 right-2 w-2 h-2 bg-green-500 rounded-full animate-bounce delay-300 shadow-lg shadow-green-500/50"></div>
+                      <div className="absolute top-20 left-1/2 transform -translate-x-1/2 w-2.5 h-2.5 bg-purple-500 rounded-full animate-pulse delay-500 shadow-lg shadow-purple-500/50"></div>
+                      <div className="absolute top-28 left-3 w-2 h-2 bg-cyan-500 rounded-full animate-bounce delay-700 shadow-lg shadow-cyan-500/50"></div>
+                      <div className="absolute top-28 right-3 w-2 h-2 bg-pink-500 rounded-full animate-bounce delay-1000 shadow-lg shadow-pink-500/50"></div>
+                      {/* 古代文字風の装飾 */}
+                      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-yellow-200 text-xs opacity-70">
+                        ⚡
+                      </div>
+                      <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 text-yellow-200 text-xs opacity-70">
+                        ⭐
+                      </div>
+                    </div>
+
+                    {/* 台座ベース */}
+                    <div className="absolute -bottom-3 -left-6 -right-6 h-8 bg-gradient-to-r from-yellow-800 via-yellow-600 to-yellow-800 rounded-xl border-4 border-yellow-500 shadow-xl">
+                      {/* ベースの装飾 */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-300/20 to-transparent animate-pulse rounded-xl"></div>
+                      <div className="absolute top-1 left-4 w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse"></div>
+                      <div className="absolute top-1 right-4 w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse delay-500"></div>
+                    </div>
+
+                    {/* 魔法の光環 */}
+                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-20 h-20 bg-yellow-300 opacity-15 rounded-full blur-2xl animate-pulse"></div>
+                    <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-16 h-16 bg-white opacity-10 rounded-full blur-xl animate-pulse delay-1000"></div>
+
+                    {/* 浮遊する魔法粒子 */}
+                    <div className="absolute -top-4 -left-4 w-1 h-1 bg-yellow-300 rounded-full animate-ping opacity-70"></div>
+                    <div className="absolute -top-2 right-2 w-1 h-1 bg-pink-300 rounded-full animate-ping delay-500 opacity-70"></div>
+                    <div className="absolute top-8 -right-6 w-1 h-1 bg-blue-300 rounded-full animate-ping delay-1000 opacity-70"></div>
+                    <div className="absolute top-16 -left-6 w-1 h-1 bg-green-300 rounded-full animate-ping delay-1500 opacity-70"></div>
                   </div>
                 </div>
 
@@ -545,8 +639,9 @@ export default function DebateScaleInterface() {
 
                 {/* 魔法の天秤アーム */}
                 <div className="relative flex justify-center">
+                  {/* メインアーム */}
                   <div
-                    className={`w-96 h-3 bg-gradient-to-r from-silver-400 via-silver-300 to-silver-400 rounded-full shadow-lg border border-gray-300 ${
+                    className={`w-96 h-4 bg-gradient-to-r from-silver-600 via-silver-200 to-silver-600 rounded-full shadow-2xl border-2 border-silver-400 relative overflow-hidden ${
                       isJudging && !verdict ? "animate-pulse" : ""
                     }`}
                     style={{
@@ -562,6 +657,29 @@ export default function DebateScaleInterface() {
                           : "transform 0.7s ease-in-out",
                     }}
                   >
+                    {/* アームの装飾パターン */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse"></div>
+                    {/* 中央の装飾 */}
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-gradient-to-r from-gold-400 to-yellow-500 rounded-full border-2 border-yellow-300 shadow-lg">
+                      <div className="absolute inset-1 bg-gradient-to-r from-yellow-300 to-gold-400 rounded-full animate-pulse"></div>
+                      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-lg shadow-red-500/50"></div>
+                    </div>
+                    {/* アーム両端の装飾 */}
+                    <div className="absolute left-4 top-1/2 transform -translate-y-1/2 w-3 h-3 bg-gradient-to-r from-blue-400 to-cyan-500 rounded-full border border-blue-300 animate-pulse delay-300"></div>
+                    <div className="absolute right-4 top-1/2 transform -translate-y-1/2 w-3 h-3 bg-gradient-to-r from-red-400 to-pink-500 rounded-full border border-red-300 animate-pulse delay-700"></div>
+                    {/* 装飾的な刻印 */}
+                    <div className="absolute left-16 top-1/2 transform -translate-y-1/2 text-silver-600 text-xs opacity-60">
+                      ⚡
+                    </div>
+                    <div className="absolute right-16 top-1/2 transform -translate-y-1/2 text-silver-600 text-xs opacity-60">
+                      ⚡
+                    </div>
+                    <div className="absolute left-32 top-1/2 transform -translate-y-1/2 text-silver-600 text-xs opacity-60">
+                      ✦
+                    </div>
+                    <div className="absolute right-32 top-1/2 transform -translate-y-1/2 text-silver-600 text-xs opacity-60">
+                      ✦
+                    </div>
                     {/* 左の魔法皿 */}
                     <div
                       className={`absolute -left-8 -top-10 ${getPlateSize("LEFT")} bg-gradient-to-br from-red-400/30 to-pink-500/30 border-4 border-red-400 rounded-full flex items-center justify-center transition-all duration-300 ${getPlateEffects("LEFT")} ${session?.state?.includes("LEFT") ? "animate-pulse shadow-lg shadow-red-400/50" : ""} backdrop-blur-sm`}
@@ -584,7 +702,6 @@ export default function DebateScaleInterface() {
                         </>
                       )}
                     </div>
-
                     {/* 右の魔法皿 */}
                     <div
                       className={`absolute -right-8 -top-10 ${getPlateSize("RIGHT")} bg-gradient-to-br from-blue-400/30 to-cyan-500/30 border-4 border-blue-400 rounded-full flex items-center justify-center transition-all duration-300 ${getPlateEffects("RIGHT")} ${session?.state?.includes("RIGHT") ? "animate-pulse shadow-lg shadow-blue-400/50" : ""} backdrop-blur-sm`}
@@ -606,8 +723,7 @@ export default function DebateScaleInterface() {
                           </div>
                         </>
                       )}
-                    </div>
-
+                    </div>{" "}
                     {/* 中央の魔法石 */}
                     <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full shadow-lg animate-pulse"></div>
                   </div>
