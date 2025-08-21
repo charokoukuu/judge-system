@@ -560,7 +560,7 @@ export default function DebateScaleInterface() {
                     key={`milky-core-${i}`}
                     className="absolute rounded-full bg-gradient-radial from-cyan-300 via-cyan-400 to-cyan-200"
                     style={{
-                      width: `${4 + Math.sin(i * 0.8) * 2}px`,
+                      width: `${4 + Math.sin(i * 0.8) * 5}px`,
                       height: `${8 + Math.cos(i * 0.8) * 4}px`,
                       animation: `milky-way-flow-smooth ${2.8 + i * 0.02}s linear infinite`,
                       animationDelay: `${i * 0.015}s`,
