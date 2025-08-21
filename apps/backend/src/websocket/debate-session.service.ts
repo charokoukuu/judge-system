@@ -128,9 +128,9 @@ export class DebateSessionService {
       // セッション状態をREADYに更新
       // DEBUG: IDLEに戻す
       // this.startTurn(sessionId, 3, Side.LEFT);
-      this.wrapUpTurn(sessionId, 3);
+      // this.wrapUpTurn(sessionId, 3);
 
-      return;
+      // return;
       await this.sessionRepository.updateState(sessionId, SessionState.READY);
       this.wsConnection.updateSessionState(sessionId, SessionState.READY);
       const systemPrompt = `

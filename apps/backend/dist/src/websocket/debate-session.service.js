@@ -77,8 +77,6 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             if (session.state !== client_1.SessionState.IDLE) {
                 throw new Error(`Session ${sessionId} is not in IDLE state`);
             }
-            this.wrapUpTurn(sessionId, 3);
-            return;
             await this.sessionRepository.updateState(sessionId, client_1.SessionState.READY);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.READY);
             const systemPrompt = `

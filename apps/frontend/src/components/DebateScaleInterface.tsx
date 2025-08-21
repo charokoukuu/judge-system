@@ -997,7 +997,7 @@ export default function DebateScaleInterface() {
                 {/* 魔法のスコア表示 */}
                 <div className="text-center mt-12">
                   <div className="text-purple-200 text-lg mb-4 font-serif italic">
-                    〜 真実の天秤の示し 〜
+                    魔法の天秤の示し
                   </div>
                   <div className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-pink-300 to-purple-300 drop-shadow-lg">
                     {isSessionFinished ? (
@@ -1045,9 +1045,9 @@ export default function DebateScaleInterface() {
                   {/* 魔法のターン評価詳細 */}
                   {Object.keys(turnResults).length > 0 && (
                     <div className="mt-6 text-sm text-purple-200">
-                      <div className="text-center mb-3 text-purple-300 font-serif italic">
+                      {/* <div className="text-center mb-3 text-purple-300 font-serif italic">
                         〜 各章の記録 〜
-                      </div>
+                      </div> */}
                       <div className="flex justify-center space-x-6">
                         {Object.entries(turnResults).map(
                           ([turnIndex, score]) => (
