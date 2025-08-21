@@ -488,14 +488,14 @@ export default function DebateScaleInterface() {
                 {/* 判定中のローディングメッセージ */}
                 {isJudging && (
                   <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
-                    <div className="bg-gradient-to-r from-purple-900/95 via-blue-900/95 to-indigo-900/95 backdrop-blur-md rounded-xl border border-purple-300 px-6 py-3 shadow-lg">
-                      <p className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-pink-300 to-purple-300 animate-pulse text-center">
-                        {judgingMessage || "賢者が最終判定を下しています..."}
+                    <div className="bg-gradient-to-r from-purple-800/90 via-blue-800/90 to-indigo-800/90 backdrop-blur-md rounded-full border border-purple-300/50 px-4 py-2 shadow-lg">
+                      <p className="text-sm font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-pink-300 to-purple-300 animate-pulse text-center whitespace-nowrap">
+                        {judgingMessage || "賢者が判定中..."}
                       </p>
-                      <div className="flex justify-center space-x-1 mt-2">
-                        <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce delay-150"></div>
-                        <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce delay-300"></div>
+                      <div className="flex justify-center space-x-1 mt-1">
+                        <div className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce"></div>
+                        <div className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce delay-150"></div>
+                        <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce delay-300"></div>
                       </div>
                     </div>
                   </div>
@@ -504,7 +504,7 @@ export default function DebateScaleInterface() {
                 {/* 魔法の天秤アーム */}
                 <div className="relative flex justify-center">
                   <div
-                    className={`w-80 h-3 bg-gradient-to-r from-silver-400 via-silver-300 to-silver-400 rounded-full transition-transform duration-700 shadow-lg border border-gray-300 ${
+                    className={`w-96 h-3 bg-gradient-to-r from-silver-400 via-silver-300 to-silver-400 rounded-full transition-transform duration-700 shadow-lg border border-gray-300 ${
                       isJudging ? "animate-pulse" : ""
                     }`}
                     style={{
@@ -516,7 +516,7 @@ export default function DebateScaleInterface() {
                   >
                     {/* 左の魔法皿 */}
                     <div
-                      className={`absolute -left-6 -top-10 ${getPlateSize("LEFT")} bg-gradient-to-br from-red-400/30 to-pink-500/30 border-4 border-red-400 rounded-full flex items-center justify-center transition-all duration-300 ${getPlateEffects("LEFT")} ${session?.state?.includes("LEFT") ? "animate-pulse shadow-lg shadow-red-400/50" : ""} backdrop-blur-sm`}
+                      className={`absolute -left-8 -top-10 ${getPlateSize("LEFT")} bg-gradient-to-br from-red-400/30 to-pink-500/30 border-4 border-red-400 rounded-full flex items-center justify-center transition-all duration-300 ${getPlateEffects("LEFT")} ${session?.state?.includes("LEFT") ? "animate-pulse shadow-lg shadow-red-400/50" : ""} backdrop-blur-sm`}
                     >
                       {/* 魔法のルーン */}
                       <div className="absolute inset-0 rounded-full border-2 border-dashed border-red-300 opacity-60 animate-spin-slow"></div>
@@ -539,7 +539,7 @@ export default function DebateScaleInterface() {
 
                     {/* 右の魔法皿 */}
                     <div
-                      className={`absolute -right-6 -top-10 ${getPlateSize("RIGHT")} bg-gradient-to-br from-blue-400/30 to-cyan-500/30 border-4 border-blue-400 rounded-full flex items-center justify-center transition-all duration-300 ${getPlateEffects("RIGHT")} ${session?.state?.includes("RIGHT") ? "animate-pulse shadow-lg shadow-blue-400/50" : ""} backdrop-blur-sm`}
+                      className={`absolute -right-8 -top-10 ${getPlateSize("RIGHT")} bg-gradient-to-br from-blue-400/30 to-cyan-500/30 border-4 border-blue-400 rounded-full flex items-center justify-center transition-all duration-300 ${getPlateEffects("RIGHT")} ${session?.state?.includes("RIGHT") ? "animate-pulse shadow-lg shadow-blue-400/50" : ""} backdrop-blur-sm`}
                     >
                       {/* 魔法のルーン */}
                       <div className="absolute inset-0 rounded-full border-2 border-dashed border-blue-300 opacity-60 animate-reverse-spin"></div>
