@@ -127,7 +127,7 @@ export class DebateSessionService {
 
       // セッション状態をREADYに更新
       // DEBUG: IDLEに戻す
-      this.startTurn(sessionId, 3, Side.LEFT);
+      this.startTurn(sessionId, 2, Side.LEFT);
 
       return;
       await this.sessionRepository.updateState(sessionId, SessionState.READY);
@@ -469,7 +469,7 @@ export class DebateSessionService {
 
       // AIで評価を実行
       // DEBUG: 実際のメッセージに直す
-      const rate = await this.evaluateTurn(
+      const evaluation = await this.evaluateTurn(
         sessionId,
         turnIndex,
         exampleUtterance(sessionId)
@@ -479,12 +479,22 @@ export class DebateSessionService {
       await this.turnResultRepository.upsertTurnResult({
         sessionId,
         turnIndex,
-        rate,
+        rate: evaluation,
       });
 
-      console.log("評価： ", rate);
+      console.log("評価： ", evaluation);
 
-      const message = `第${turnIndex}回目の弁論の評価が完了したのじゃ。`;
+      // 優勢側を判定してアナウンス
+      let advantageMessage = "";
+      if (evaluation > 0.3) {
+        advantageMessage = "太陽の皿が優勢じゃ。";
+      } else if (evaluation < -0.3) {
+        advantageMessage = "月の皿が優勢じゃ。";
+      } else {
+        advantageMessage = "両者互角の戦いじゃ。";
+      }
+
+      const message = `第${turnIndex}回目の弁論の評価が完了したのじゃ。${advantageMessage}`;
 
       await this.aiResponseRepository.create({
         sessionId,
@@ -501,10 +511,10 @@ export class DebateSessionService {
         this.wsConnection.broadcastToSession(sessionId, "turn:evaluated", {
           sessionId,
           turnIndex,
-          rate,
+          rate: evaluation,
           message,
         });
-        await judgeTrigger((rate * 55).toString());
+        await judgeTrigger((evaluation * 55).toString());
       });
 
       // 次のステップに進む

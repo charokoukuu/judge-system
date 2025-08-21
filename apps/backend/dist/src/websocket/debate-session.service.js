@@ -77,7 +77,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             if (session.state !== client_1.SessionState.IDLE) {
                 throw new Error(`Session ${sessionId} is not in IDLE state`);
             }
-            this.startTurn(sessionId, 3, client_1.Side.LEFT);
+            this.startTurn(sessionId, 2, client_1.Side.LEFT);
             return;
             await this.sessionRepository.updateState(sessionId, client_1.SessionState.READY);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.READY);
@@ -310,14 +310,24 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 }, 2000);
                 return;
             }
-            const rate = await this.evaluateTurn(sessionId, turnIndex, (0, exampleMessage_1.exampleUtterance)(sessionId));
+            const evaluation = await this.evaluateTurn(sessionId, turnIndex, (0, exampleMessage_1.exampleUtterance)(sessionId));
             await this.turnResultRepository.upsertTurnResult({
                 sessionId,
                 turnIndex,
-                rate,
+                rate: evaluation,
             });
-            console.log("評価： ", rate);
-            const message = `第${turnIndex}回目の弁論の評価が完了したのじゃ。`;
+            console.log("評価： ", evaluation);
+            let advantageMessage = "";
+            if (evaluation > 0.3) {
+                advantageMessage = "太陽の皿が優勢じゃ。";
+            }
+            else if (evaluation < -0.3) {
+                advantageMessage = "月の皿が優勢じゃ。";
+            }
+            else {
+                advantageMessage = "両者互角の戦いじゃ。";
+            }
+            const message = `第${turnIndex}回目の弁論の評価が完了したのじゃ。${advantageMessage}`;
             await this.aiResponseRepository.create({
                 sessionId,
                 turnIndex,
@@ -331,10 +341,10 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 this.wsConnection.broadcastToSession(sessionId, "turn:evaluated", {
                     sessionId,
                     turnIndex,
-                    rate,
+                    rate: evaluation,
                     message,
                 });
-                await (0, judge_trigger_1.judgeTrigger)((rate * 55).toString());
+                await (0, judge_trigger_1.judgeTrigger)((evaluation * 55).toString());
             });
             setTimeout(() => {
                 this.proceedToNext(sessionId, turnIndex);
