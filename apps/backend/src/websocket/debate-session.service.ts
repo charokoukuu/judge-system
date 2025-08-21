@@ -877,23 +877,23 @@ ${leftText}
         );
         if (result) {
           turnResults.push(
-            `ターン${turn}: ${result.rate > 0 ? "右" : "左"}優勢 (スコア: ${result.rate})`
+            `ターン${turn}: ${result.rate > 0 ? "太陽の皿" : "月の皿"}優勢 (スコア: ${result.rate})`
           );
         }
       }
 
       const prompt = `
-ディベートの最終判定を行ってください。
+あなたは古い魔法の天秤を操る賢者です。ディベートの最終判定を行い、魔法使いの口調で結果を発表してください。
 
-テーマ: ${session.theme}
+議題: ${session.theme}
 
-右側の発言:
+太陽の皿（右側）の弁論:
 ${rightSummary}
 
-左側の発言:
+月の皿（左側）の弁論:
 ${leftSummary}
 
-各ターンの評価結果:
+各ターンでの天秤の傾き:
 ${turnResults.join("\n")}
 
 以下の観点で総合的に判断してください:
@@ -902,18 +902,18 @@ ${turnResults.join("\n")}
 3. 相手の主張への反駁の的確さ
 4. 全体的な議論の構成力
 
-勝者を「RIGHT」または「LEFT」で答え、その後に理由を100文字程度で説明してください。
+勝者を「太陽」または「月」で答え、その後に理由を100文字程度で魔法使い口調（〜じゃ、〜のじゃ等）で説明してください。
 
 回答形式:
-勝者: RIGHT または LEFT
-理由: [判定理由]
+勝者: 太陽 または 月
+理由: [魔法使い口調での判定理由]
 `;
 
       const response = await this.openaiService.chatCompletion([
         {
           role: "system",
           content:
-            "あなたは公正で経験豊富なディベート審判です。論理性と説得力を重視して判定してください。",
+            "あなたは魔法の天秤を操る古い賢者です。常に魔法使いの口調（〜じゃ、〜のじゃ、〜であろう等）で話してください。論理性と説得力を重視して公正に判定し、結果を魔法使いらしく発表してください。",
         },
         { role: "user", content: prompt },
       ]);
@@ -921,11 +921,15 @@ ${turnResults.join("\n")}
       // レスポンスをパース
       const lines = response.split("\n");
       let winner: Winner = Winner.RIGHT;
-      let rationale = "論理性と根拠の明確さを総合的に判断した結果です。";
+      let rationale = "論理と説得力を総合的に判断した結果じゃ。";
 
       for (const line of lines) {
         if (line.includes("勝者:") || line.includes("Winner:")) {
-          if (line.includes("LEFT")) {
+          if (line.includes("月")) {
+            winner = Winner.LEFT;
+          } else if (line.includes("太陽")) {
+            winner = Winner.RIGHT;
+          } else if (line.includes("LEFT")) {
             winner = Winner.LEFT;
           } else if (line.includes("RIGHT")) {
             winner = Winner.RIGHT;
