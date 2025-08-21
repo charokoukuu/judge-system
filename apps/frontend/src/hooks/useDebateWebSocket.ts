@@ -59,6 +59,17 @@ export const useDebateWebSocket = () => {
     [turnIndex: number]: number; // -1.0 to 1.0 のスコア
   }>({});
 
+  // 判定ローディング状態
+  const [isJudging, setIsJudging] = useState(false);
+  const [judgingMessage, setJudgingMessage] = useState<string>("");
+
+  // デバッグ用：状態変更を監視
+  useEffect(() => {
+    console.log(
+      `[ローディング状態変更] isJudging: ${isJudging}, judgingMessage: "${judgingMessage}"`
+    );
+  }, [isJudging, judgingMessage]);
+
   // 音声再生キュー
   const audioQueueRef = useRef<
     Array<{
@@ -214,6 +225,16 @@ export const useDebateWebSocket = () => {
       console.log("WebSocket disconnected");
       setIsConnected(false);
     });
+
+    // デバッグ用：すべてのイベントをキャッチ
+    const originalOn = socket.on.bind(socket);
+    socket.on = function (event: string, listener: any) {
+      console.log(`[WebSocket] Registering listener for event: ${event}`);
+      return originalOn(event, (...args: any[]) => {
+        console.log(`[WebSocket] Received event: ${event}`, args);
+        return listener(...args);
+      });
+    };
 
     socket.on("connection:confirmed", (data) => {
       console.log("Connection confirmed:", data);
@@ -402,6 +423,26 @@ export const useDebateWebSocket = () => {
       addMessage(data.message, "moderator");
     });
 
+    // ローディング開始
+    socket.on("loading:start", (data: any) => {
+      console.log("Loading started:", data);
+      console.log("Current isJudging state before change:", isJudging);
+      console.log("Setting isJudging to true");
+      setIsJudging(true);
+      setJudgingMessage(data.message);
+      console.log("setIsJudging(true) called");
+    });
+
+    // ローディング停止
+    socket.on("loading:stop", (data: any) => {
+      console.log("Loading stopped:", data);
+      console.log("Current isJudging state before change:", isJudging);
+      console.log("Setting isJudging to false");
+      setIsJudging(false);
+      setJudgingMessage("");
+      console.log("setIsJudging(false) called");
+    });
+
     // 判定結果
     socket.on("verdict:announced", (data: any) => {
       console.log("Verdict announced:", data);
@@ -542,6 +583,8 @@ export const useDebateWebSocket = () => {
     countdownEvent,
     recordingStopEvent,
     turnResults,
+    isJudging,
+    judgingMessage,
     createSession,
     joinSession,
     startSession,

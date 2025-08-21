@@ -13,6 +13,8 @@ export default function DebateClient() {
     messages,
     error,
     isLoading,
+    isJudging,
+    judgingMessage,
     createSession,
     joinSession,
     startSession,
@@ -155,6 +157,16 @@ export default function DebateClient() {
                   セッション開始
                 </button>
               )}
+              {/* デバッグ用ローディングテストボタン */}
+              <button
+                onClick={() => {
+                  console.log("Debug: Force toggling isJudging");
+                  console.log("Current isJudging:", isJudging);
+                }}
+                className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
+              >
+                ローディング状態: {isJudging ? "ON" : "OFF"}
+              </button>
               <button
                 onClick={disconnect}
                 className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
@@ -232,8 +244,66 @@ export default function DebateClient() {
 
         {/* メッセージ表示エリア */}
         <div className="mb-6 p-4 bg-white rounded-lg shadow">
-          <h2 className="text-xl font-bold mb-4">メッセージ</h2>
+          <h2 className="text-xl font-bold mb-4">
+            メッセージ
+            {/* デバッグ用 */}
+            <span className="text-sm text-gray-500 ml-2">
+              (ローディング状態: {isJudging ? "ON" : "OFF"})
+            </span>
+          </h2>
           <div className="h-96 overflow-y-auto border border-gray-200 rounded-md p-3 space-y-2">
+            {/* 判定中のローディングアニメーション */}
+            {isJudging && (
+              <div className="relative p-6 mb-4 rounded-lg bg-gradient-to-r from-purple-100 via-blue-100 to-indigo-100 border-2 border-purple-300">
+                <div className="text-center">
+                  <div className="relative inline-block">
+                    {/* 魔法の天秤アニメーション */}
+                    <div className="flex items-center justify-center mb-4">
+                      <div className="relative">
+                        <div className="animate-spin-slow">⚖️</div>
+                        <div className="absolute -top-2 -right-2 animate-bounce">
+                          ✨
+                        </div>
+                        <div className="absolute -bottom-2 -left-2 animate-bounce delay-150">
+                          🔮
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* パーティクルエフェクト */}
+                    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                      <div className="absolute top-2 left-4 animate-ping delay-75">
+                        ⭐
+                      </div>
+                      <div className="absolute top-8 right-6 animate-ping delay-150">
+                        ✨
+                      </div>
+                      <div className="absolute bottom-4 left-8 animate-ping delay-300">
+                        🌟
+                      </div>
+                      <div className="absolute bottom-8 right-4 animate-ping delay-450">
+                        💫
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-lg font-bold text-purple-800 animate-pulse">
+                      {judgingMessage || "賢者が最終判定を下しています..."}
+                    </p>
+                    <div className="flex justify-center space-x-1">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce delay-150"></div>
+                      <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce delay-300"></div>
+                    </div>
+                    <p className="text-sm text-purple-600 italic">
+                      知恵の結晶が形作られています 🔮✨
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {messages.length === 0 ? (
               <p className="text-gray-500 text-center">
                 メッセージはありません

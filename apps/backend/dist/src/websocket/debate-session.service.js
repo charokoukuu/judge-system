@@ -77,7 +77,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             if (session.state !== client_1.SessionState.IDLE) {
                 throw new Error(`Session ${sessionId} is not in IDLE state`);
             }
-            this.startTurn(sessionId, 2, client_1.Side.LEFT);
+            this.wrapUpTurn(sessionId, 3);
             return;
             await this.sessionRepository.updateState(sessionId, client_1.SessionState.READY);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.READY);
@@ -324,28 +324,40 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             else if (evaluation < -0.3) {
                 advantageMessage = "月の皿が優勢じゃ。";
             }
-            else {
-                advantageMessage = "両者互角の戦いじゃ。";
-            }
-            const message = `第${turnIndex}回目の弁論の評価が完了したのじゃ。${advantageMessage}`;
+            const evaluationMessage = `第${turnIndex}回目の弁論の評価が完了したのじゃ。`;
             await this.aiResponseRepository.create({
                 sessionId,
                 turnIndex,
-                text: message,
+                text: evaluationMessage,
             });
             if (turnIndex === 3) {
                 this.proceedToNext(sessionId, turnIndex);
                 return;
             }
-            await this.generateAndBroadcastAudioSync(sessionId, message, async () => {
+            await this.generateAndBroadcastAudioSync(sessionId, evaluationMessage, async () => {
                 this.wsConnection.broadcastToSession(sessionId, "turn:evaluated", {
                     sessionId,
                     turnIndex,
                     rate: evaluation,
-                    message,
+                    message: evaluationMessage,
                 });
                 await (0, judge_trigger_1.judgeTrigger)((evaluation * 55).toString());
             });
+            if (advantageMessage) {
+                await this.aiResponseRepository.create({
+                    sessionId,
+                    turnIndex,
+                    text: advantageMessage,
+                });
+                await this.generateAndBroadcastAudioSync(sessionId, advantageMessage, () => {
+                    this.wsConnection.broadcastToSession(sessionId, "turn:advantage", {
+                        sessionId,
+                        turnIndex,
+                        rate: evaluation,
+                        message: advantageMessage,
+                    });
+                });
+            }
             setTimeout(() => {
                 this.proceedToNext(sessionId, turnIndex);
             }, 3000);
@@ -374,19 +386,24 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             await (0, judge_trigger_1.judgeTrigger)("0");
             await this.sessionRepository.updateState(sessionId, client_1.SessionState.JUDGING);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.JUDGING);
-            const message = "全ての弁論が終了したのじゃ。魔法の天秤で最終的な判定を行うぞい。";
+            const judgingMessage = "全ての弁論が終了したのじゃ。魔法の天秤で最終的な判定を行うぞい。";
             await this.aiResponseRepository.create({
                 sessionId,
                 turnIndex: 3,
-                text: message,
+                text: judgingMessage,
             });
-            const verdict = await this.performFinalJudgment(sessionId);
-            await this.generateAndBroadcastAudioSync(sessionId, message, () => {
-                this.wsConnection.broadcastToSession(sessionId, "judgment:started", {
+            const judgmentPromise = this.performFinalJudgment(sessionId);
+            await this.generateAndBroadcastAudioSync(sessionId, judgingMessage, async () => {
+                await this.wsConnection.broadcastToSession(sessionId, "judgment:started", {
                     sessionId,
-                    message,
+                    message: judgingMessage,
                 });
             });
+            this.wsConnection.broadcastToSession(sessionId, "loading:start", {
+                sessionId,
+                message: "魔法の天秤が真実を測定中じゃ...",
+            });
+            const verdict = await judgmentPromise;
             await this.verdictRepository.upsertVerdict(verdict);
             console.log(`Verdict announced for session ${sessionId}: ${JSON.stringify(verdict)}`);
             await this.announceVerdict(sessionId, verdict.winner, verdict.rationale);
@@ -416,6 +433,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                     rationale,
                     message,
                 });
+                await this.wsConnection.broadcastToSession(sessionId, "loading:stop", {});
                 await (0, timer_1.timer)(2000);
                 await (0, judge_trigger_1.judgeTrigger)(winner === client_1.Side.RIGHT ? "35" : "-35");
             });

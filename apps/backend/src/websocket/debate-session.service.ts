@@ -127,7 +127,8 @@ export class DebateSessionService {
 
       // セッション状態をREADYに更新
       // DEBUG: IDLEに戻す
-      this.startTurn(sessionId, 2, Side.LEFT);
+      // this.startTurn(sessionId, 3, Side.LEFT);
+      this.wrapUpTurn(sessionId, 3);
 
       return;
       await this.sessionRepository.updateState(sessionId, SessionState.READY);
@@ -490,16 +491,14 @@ export class DebateSessionService {
         advantageMessage = "太陽の皿が優勢じゃ。";
       } else if (evaluation < -0.3) {
         advantageMessage = "月の皿が優勢じゃ。";
-      } else {
-        advantageMessage = "両者互角の戦いじゃ。";
       }
 
-      const message = `第${turnIndex}回目の弁論の評価が完了したのじゃ。${advantageMessage}`;
+      const evaluationMessage = `第${turnIndex}回目の弁論の評価が完了したのじゃ。`;
 
       await this.aiResponseRepository.create({
         sessionId,
         turnIndex,
-        text: message,
+        text: evaluationMessage,
       });
 
       if (turnIndex === 3) {
@@ -507,15 +506,42 @@ export class DebateSessionService {
         return;
       }
 
-      await this.generateAndBroadcastAudioSync(sessionId, message, async () => {
-        this.wsConnection.broadcastToSession(sessionId, "turn:evaluated", {
+      // 評価完了のアナウンス
+      await this.generateAndBroadcastAudioSync(
+        sessionId,
+        evaluationMessage,
+        async () => {
+          this.wsConnection.broadcastToSession(sessionId, "turn:evaluated", {
+            sessionId,
+            turnIndex,
+            rate: evaluation,
+            message: evaluationMessage,
+          });
+          await judgeTrigger((evaluation * 55).toString());
+        }
+      );
+
+      // 優勢側のアナウンス（別メッセージとして送信）
+      if (advantageMessage) {
+        await this.aiResponseRepository.create({
           sessionId,
           turnIndex,
-          rate: evaluation,
-          message,
+          text: advantageMessage,
         });
-        await judgeTrigger((evaluation * 55).toString());
-      });
+
+        await this.generateAndBroadcastAudioSync(
+          sessionId,
+          advantageMessage,
+          () => {
+            this.wsConnection.broadcastToSession(sessionId, "turn:advantage", {
+              sessionId,
+              turnIndex,
+              rate: evaluation,
+              message: advantageMessage,
+            });
+          }
+        );
+      }
 
       // 次のステップに進む
       setTimeout(() => {
@@ -558,33 +584,51 @@ export class DebateSessionService {
       await this.sessionRepository.updateState(sessionId, SessionState.JUDGING);
       this.wsConnection.updateSessionState(sessionId, SessionState.JUDGING);
 
-      const message =
+      const judgingMessage =
         "全ての弁論が終了したのじゃ。魔法の天秤で最終的な判定を行うぞい。";
 
       await this.aiResponseRepository.create({
         sessionId,
         turnIndex: 3,
-        text: message,
+        text: judgingMessage,
       });
 
-      // // 判定処理を実行
-      const verdict = await this.performFinalJudgment(sessionId);
+      // 判定処理を並行開始（非同期）
+      const judgmentPromise = this.performFinalJudgment(sessionId);
 
-      await this.generateAndBroadcastAudioSync(sessionId, message, () => {
-        this.wsConnection.broadcastToSession(sessionId, "judgment:started", {
-          sessionId,
-          message,
-        });
+      // 判定開始のアナウンス（ローディングアニメーションと同時開始）
+      await this.generateAndBroadcastAudioSync(
+        sessionId,
+        judgingMessage,
+        async () => {
+          await this.wsConnection.broadcastToSession(
+            sessionId,
+            "judgment:started",
+            {
+              sessionId,
+              message: judgingMessage,
+            }
+          );
+        }
+      );
+
+      // ローディングアニメーション開始
+      this.wsConnection.broadcastToSession(sessionId, "loading:start", {
+        sessionId,
+        message: "魔法の天秤が真実を測定中じゃ...",
       });
 
-      // // 判定結果を保存
+      // 判定処理の完了を待機
+      const verdict = await judgmentPromise;
+
+      // 判定結果を保存
       await this.verdictRepository.upsertVerdict(verdict);
 
       console.log(
         `Verdict announced for session ${sessionId}: ${JSON.stringify(verdict)}`
       );
 
-      // 判定結果を通知
+      // 判定結果を発表
       await this.announceVerdict(sessionId, verdict.winner, verdict.rationale);
     } catch (error) {
       this.logger.error(`Failed to start final judgment: ${error.message}`);
@@ -622,6 +666,12 @@ export class DebateSessionService {
           rationale,
           message,
         });
+        await this.wsConnection.broadcastToSession(
+          sessionId,
+          "loading:stop",
+          {}
+        );
+
         await timer(2000);
         await judgeTrigger(winner === Side.RIGHT ? "35" : "-35");
       });
