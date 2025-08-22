@@ -290,7 +290,7 @@ export class DebateSessionService {
           turnIndex,
           side,
           // DEBUG: 15秒に戻す
-          duration: 2,
+          duration: 15,
         }
       );
 
@@ -319,7 +319,7 @@ export class DebateSessionService {
     const timeoutId = setTimeout(() => {
       this.endTurn(sessionId, turnIndex, side);
       // DEBUG: 15秒に戻す
-    }, 2000); // 15秒
+    }, 15000); // 15秒
 
     const timer: TurnTimer = {
       sessionId,
@@ -473,7 +473,7 @@ export class DebateSessionService {
       const evaluation = await this.evaluateTurn(
         sessionId,
         turnIndex,
-        exampleUtterance(sessionId)
+        utterances
       );
 
       // 評価結果を保存
@@ -851,7 +851,7 @@ ${leftText}
       }
 
       // DEBUG: 後で消して定数にする
-      allUtterances = exampleUtterance(sessionId);
+      // allUtterances = exampleUtterance(sessionId);
       // 右と左の発話を分類・整理
       const rightUtterances = allUtterances.filter(
         (u) => u.side === Side.RIGHT
