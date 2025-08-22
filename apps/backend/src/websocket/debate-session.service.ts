@@ -336,7 +336,7 @@ export class DebateSessionService {
         await ledTrigger(State.idle);
         const turnMessage =
           turnIndex === 3
-            ? "最後の弁論じゃ。これまでの議論をまとめて話してくれい。"
+            ? "最終弁論じゃ。これまでの議論をまとめて話してくれい。"
             : `第${turnIndex}回目の弁論を始めるのじゃ。`;
         await this.generateAndBroadcastAudioSync(sessionId, turnMessage, () => {
           this.wsConnection.broadcastToSession(sessionId, "turn:started", {

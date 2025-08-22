@@ -16,6 +16,13 @@ led_NAME = "LEDBLE"
 led_SERVICE_UUID = "AF4A332B-5C57-4CCE-85DB-922D8B193A07"
 led_CHARACTERISTIC_UUID = "6CFCADB4-D196-430E-9D9B-D7B876D13C6E"
 
+# デバイス3の設定
+dial_NAME = "dial"
+dial_SERVICE_UUID = "747F9FF4-B429-4CBA-BBA7-1E882A72CE34"
+dial_CHARACTERISTIC_UUID = "1D9E8BA3-B194-4A5E-9E4E-68D2221A95D1"
+
+
+
 # グローバル接続管理
 class BLEConnectionManager:
     def __init__(self):
@@ -99,7 +106,7 @@ class MessageRequest(BaseModel):
 
 @app.on_event("startup")
 async def startup_event():
-    """アプリケーション起動時に両方のデバイスに接続"""
+    """アプリケーション起動時に全デバイスに接続"""
     is_docker = os.path.exists('/.dockerenv')
     
     if is_docker:
@@ -108,13 +115,17 @@ async def startup_event():
     
     print("Initializing BLE connections...")
     
-    # 両方のデバイスに接続を試行
+    # 全デバイスに接続を試行
     cybergear_connected = await connection_manager.connect_device(
         cybergear_NAME, cybergear_SERVICE_UUID, cybergear_CHARACTERISTIC_UUID
     )
     
     led_connected = await connection_manager.connect_device(
         led_NAME, led_SERVICE_UUID, led_CHARACTERISTIC_UUID
+    )
+    
+    dial_connected = await connection_manager.connect_device(
+        dial_NAME, dial_SERVICE_UUID, dial_CHARACTERISTIC_UUID
     )
     
     if cybergear_connected:
@@ -127,10 +138,16 @@ async def startup_event():
     else:
         print(f"✗ Failed to connect to {led_NAME}")
     
-    if not cybergear_connected and not led_connected:
+    if dial_connected:
+        print(f"✓ {dial_NAME} connected successfully")
+    else:
+        print(f"✗ Failed to connect to {dial_NAME}")
+    
+    connected_count = sum([cybergear_connected, led_connected, dial_connected])
+    if connected_count == 0:
         print("Warning: No devices connected")
     else:
-        print("BLE initialization complete")
+        print(f"BLE initialization complete: {connected_count}/3 devices connected")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -139,23 +156,25 @@ async def shutdown_event():
     await connection_manager.disconnect_all()
 
 async def send_message_to_all_devices_persistent(message: str):
-    """持続接続を使用して両方のデバイスに並行してメッセージを送信"""
+    """持続接続を使用して全デバイスに並行してメッセージを送信"""
     
-    # 両方のデバイスに並行して送信
+    # 全デバイスに並行して送信
     tasks = [
         connection_manager.send_message(cybergear_NAME, cybergear_CHARACTERISTIC_UUID, message),
-        connection_manager.send_message(led_NAME, led_CHARACTERISTIC_UUID, message)
+        connection_manager.send_message(led_NAME, led_CHARACTERISTIC_UUID, message),
+        connection_manager.send_message(dial_NAME, dial_CHARACTERISTIC_UUID, message)
     ]
     
-    # 両方のタスクを実行
+    # 全タスクを実行
     results = await asyncio.gather(*tasks, return_exceptions=True)
     
     # 結果をチェック
     success_count = 0
     error_messages = []
     
+    device_names = [cybergear_NAME, led_NAME, dial_NAME]
     for i, result in enumerate(results):
-        device_name = cybergear_NAME if i == 0 else led_NAME
+        device_name = device_names[i]
         if isinstance(result, Exception):
             error_messages.append(f"{device_name}: {str(result)}")
         elif result:
@@ -166,7 +185,7 @@ async def send_message_to_all_devices_persistent(message: str):
     if success_count == 0:
         raise Exception(f"Failed to send to all devices: {'; '.join(error_messages)}")
     elif error_messages:
-        print(f"Partial success: {success_count}/2 devices. Errors: {'; '.join(error_messages)}")
+        print(f"Partial success: {success_count}/3 devices. Errors: {'; '.join(error_messages)}")
     else:
         print(f"Successfully sent message to all {success_count} devices")
 
@@ -282,6 +301,24 @@ async def send_ble_message_led(request: MessageRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to send message to led: {str(e)}")
 
+@app.post("/send/dial")
+async def send_ble_message_dial(request: MessageRequest):
+    """デバイス3（dial）のみに送信"""
+    is_docker = os.path.exists('/.dockerenv')
+    
+    try:
+        if is_docker:
+            print(f"Docker environment detected. Mocking BLE send to dial for message: {request.message}")
+            return {"status": "success", "message": f"Message '{request.message}' sent successfully to dial (Docker mock mode)"}
+        else:
+            success = await connection_manager.send_message(dial_NAME, dial_CHARACTERISTIC_UUID, request.message)
+            if success:
+                return {"status": "success", "message": f"Message '{request.message}' sent successfully to dial"}
+            else:
+                raise HTTPException(status_code=500, detail="Failed to send message to dial")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send message to dial: {str(e)}")
+
 # ヘルスチェックエンドポイント
 @app.get("/")
 async def health_check():
@@ -291,13 +328,15 @@ async def health_check():
         "message": "BLE Server is running",
         "devices": {
             "cybergear": cybergear_NAME,
-            "led": led_NAME
+            "led": led_NAME,
+            "dial": dial_NAME
         },
         "connections": connection_status,
         "endpoints": {
             "send_all": "/send",
             "send_cybergear": "/send/cybergear", 
             "send_led": "/send/led",
+            "send_dial": "/send/dial",
             "reconnect": "/reconnect"
         }
     }
@@ -324,16 +363,21 @@ async def reconnect_devices():
             led_NAME, led_SERVICE_UUID, led_CHARACTERISTIC_UUID
         )
         
+        dial_connected = await connection_manager.connect_device(
+            dial_NAME, dial_SERVICE_UUID, dial_CHARACTERISTIC_UUID
+        )
+        
         results = {
             "cybergear": cybergear_connected,
-            "led": led_connected
+            "led": led_connected,
+            "dial": dial_connected
         }
         
         success_count = sum(results.values())
         
         return {
             "status": "success" if success_count > 0 else "partial_failure",
-            "message": f"Reconnection complete: {success_count}/2 devices connected",
+            "message": f"Reconnection complete: {success_count}/3 devices connected",
             "connections": results
         }
         
@@ -346,12 +390,14 @@ if __name__ == "__main__":
     print(f"Configured devices:")
     print(f"  Device 1: {cybergear_NAME}")
     print(f"  Device 2: {led_NAME}")
+    print(f"  Device 3: {dial_NAME}")
     print("Available endpoints:")
     print("  POST /send - Send to all devices (persistent connection)")
     print("  POST /send/cybergear - Send to cybergear only")
     print("  POST /send/led - Send to led only")
+    print("  POST /send/dial - Send to dial only")
     print("  POST /reconnect - Reconnect to all devices")
     print("  GET / - Health check and connection status")
     print("Example: curl -X POST http://localhost:9000/send -H 'Content-Type: application/json' -d '{\"message\":\"0\"}'")
-    print("\nNote: Devices will be connected at startup and connections maintained for faster sending.")
+    print("\nNote: All 3 devices will be connected at startup and connections maintained for faster sending.")
     uvicorn.run(app, host="0.0.0.0", port=9000)
