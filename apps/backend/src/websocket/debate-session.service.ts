@@ -169,7 +169,7 @@ export class DebateSessionService {
       );
 
       // 開始アナウンスを作成
-      const startMessage = `魔法の天秤が真実を測る時が来たのじゃ。議題は「${session.theme}」じゃ。3回の弁論で真理を探るのじゃ。太陽の皿は${result.right}、月の皿は${result.left}の立場を担うのじゃ。まずは太陽の代弁者から、15秒で聞かせてくれい。`;
+      const startMessage = `魔法の天秤が真実を測る時が来たのじゃ。議題は「${session.theme}」じゃ。3回の弁論で真理を探るのじゃ。太陽の皿は${result.right}、月の皿は${result.left}の立場を担うのじゃ。`;
 
       // AIアナウンスを保存
       await this.aiResponseRepository.create({
@@ -178,7 +178,7 @@ export class DebateSessionService {
         text: startMessage,
       });
 
-      // TTSでアナウンス音声を生成・配信、完了後に第1ターンを開始
+      // TTSでアナウンス音声を生成・配信
       await this.generateAndBroadcastAudioSync(sessionId, startMessage, () => {
         this.wsConnection.broadcastToSession(sessionId, "session:started", {
           sessionId,
@@ -186,6 +186,86 @@ export class DebateSessionService {
           message: startMessage,
         });
       });
+
+      // ビーバー配置の指示メッセージ（右側用）
+      const beaverRightMessage = `それぞれの皿にビーバーを配置するのじゃ。まずは右の者、太陽の皿にビーバーを乗せてくれ。`;
+
+      await this.aiResponseRepository.create({
+        sessionId,
+        turnIndex: 0,
+        text: beaverRightMessage,
+      });
+
+      setTimeout(() => {
+        judgeTrigger("30");
+      }, 3000);
+      await this.generateAndBroadcastAudioSync(
+        sessionId,
+        beaverRightMessage,
+        () => {
+          this.wsConnection.broadcastToSession(
+            sessionId,
+            "beaver:right_instruction",
+            {
+              sessionId,
+              message: beaverRightMessage,
+            }
+          );
+        }
+      );
+      await timer(4000);
+      await judgeTrigger("-30");
+
+      // ビーバー配置の指示メッセージ（左側用）
+      const beaverLeftMessage = `次に左の者、月の皿にビーバーを配置するのじゃ`;
+
+      await this.aiResponseRepository.create({
+        sessionId,
+        turnIndex: 0,
+        text: beaverLeftMessage,
+      });
+
+      await this.generateAndBroadcastAudioSync(
+        sessionId,
+        beaverLeftMessage,
+        () => {
+          this.wsConnection.broadcastToSession(
+            sessionId,
+            "beaver:left_instruction",
+            {
+              sessionId,
+              message: beaverLeftMessage,
+            }
+          );
+        }
+      );
+
+      await timer(4000);
+
+      // await judgeTrigger("0");
+      // 弁論開始メッセージ
+      const debateStartMessage = `それでは弁論を開始するのじゃ。まずは太陽の代弁者から、15秒で聞かせてくれい。`;
+
+      await this.aiResponseRepository.create({
+        sessionId,
+        turnIndex: 0,
+        text: debateStartMessage,
+      });
+
+      await this.generateAndBroadcastAudioSync(
+        sessionId,
+        debateStartMessage,
+        () => {
+          this.wsConnection.broadcastToSession(
+            sessionId,
+            "debate:start_instruction",
+            {
+              sessionId,
+              message: debateStartMessage,
+            }
+          );
+        }
+      );
 
       // 音声再生完了後に第1ターンを開始
       await this.startTurn(sessionId, 1, Side.RIGHT);
