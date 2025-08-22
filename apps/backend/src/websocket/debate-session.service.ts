@@ -93,7 +93,7 @@ export class DebateSessionService {
    * 新しいディベートセッションを作成
    */
   async createSession(config: DebateSessionConfig): Promise<string> {
-    await judgeTrigger("0");
+    await judgeTrigger("0", true);
     try {
       const session = await this.sessionRepository.create({
         theme: config.theme,
@@ -242,7 +242,7 @@ export class DebateSessionService {
 
       await timer(4000);
 
-      // await judgeTrigger("0");
+      await judgeTrigger("0");
       // 弁論開始メッセージ
       const debateStartMessage = `それでは弁論を開始するのじゃ。まずは太陽の代弁者から、15秒で聞かせてくれい。`;
 
@@ -323,7 +323,11 @@ export class DebateSessionService {
       });
 
       if (side === Side.RIGHT) {
-        await judgeTrigger("0");
+        if (turnIndex === 1) {
+          await judgeTrigger("0", true);
+        } else {
+          await judgeTrigger("0");
+        }
         const turnMessage =
           turnIndex === 3
             ? "最後の弁論じゃ。これまでの議論をまとめて話してくれい。"
@@ -660,7 +664,7 @@ export class DebateSessionService {
    */
   async startFinalJudgment(sessionId: string): Promise<void> {
     try {
-      await judgeTrigger("0");
+      await judgeTrigger("0", true);
       await this.sessionRepository.updateState(sessionId, SessionState.JUDGING);
       this.wsConnection.updateSessionState(sessionId, SessionState.JUDGING);
 

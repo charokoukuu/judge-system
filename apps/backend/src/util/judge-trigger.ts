@@ -1,9 +1,11 @@
 import axios from "axios";
 import { playLocalAudio, playMode } from "./audioPlay";
 
-export const judgeTrigger = async (message: string) => {
+export const judgeTrigger = async (message: string, isMute?: boolean) => {
   setTimeout(() => {
-    playLocalAudio(playMode.GEAR);
+    if (!isMute) {
+      playLocalAudio(playMode.GEAR);
+    }
   }, 1000);
   axios
     .post("http://localhost:9000/send", {

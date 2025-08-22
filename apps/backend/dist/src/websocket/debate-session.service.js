@@ -54,7 +54,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         this.lastSentMessages = new Map();
     }
     async createSession(config) {
-        await (0, judge_trigger_1.judgeTrigger)("0");
+        await (0, judge_trigger_1.judgeTrigger)("0", true);
         try {
             const session = await this.sessionRepository.create({
                 theme: config.theme,
@@ -150,6 +150,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 });
             });
             await (0, timer_1.timer)(4000);
+            await (0, judge_trigger_1.judgeTrigger)("0");
             const debateStartMessage = `それでは弁論を開始するのじゃ。まずは太陽の代弁者から、15秒で聞かせてくれい。`;
             await this.aiResponseRepository.create({
                 sessionId,
@@ -204,7 +205,12 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 text: message,
             });
             if (side === client_1.Side.RIGHT) {
-                await (0, judge_trigger_1.judgeTrigger)("0");
+                if (turnIndex === 1) {
+                    await (0, judge_trigger_1.judgeTrigger)("0", true);
+                }
+                else {
+                    await (0, judge_trigger_1.judgeTrigger)("0");
+                }
                 const turnMessage = turnIndex === 3
                     ? "最後の弁論じゃ。これまでの議論をまとめて話してくれい。"
                     : `第${turnIndex}回目の弁論を始めるのじゃ。`;
@@ -423,7 +429,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
     }
     async startFinalJudgment(sessionId) {
         try {
-            await (0, judge_trigger_1.judgeTrigger)("0");
+            await (0, judge_trigger_1.judgeTrigger)("0", true);
             await this.sessionRepository.updateState(sessionId, client_1.SessionState.JUDGING);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.JUDGING);
             const judgingMessage = "全ての弁論が終了したのじゃ。魔法の天秤で最終的な判定を行うぞい。";

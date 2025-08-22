@@ -3,9 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.judgeTrigger = void 0;
 const axios_1 = require("axios");
 const audioPlay_1 = require("./audioPlay");
-const judgeTrigger = async (message) => {
+const judgeTrigger = async (message, isMute) => {
     setTimeout(() => {
-        (0, audioPlay_1.playLocalAudio)(audioPlay_1.playMode.GEAR);
+        if (!isMute) {
+            (0, audioPlay_1.playLocalAudio)(audioPlay_1.playMode.GEAR);
+        }
     }, 1000);
     axios_1.default
         .post("http://localhost:9000/send", {
