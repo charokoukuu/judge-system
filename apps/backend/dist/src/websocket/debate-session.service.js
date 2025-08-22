@@ -55,6 +55,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
     }
     async createSession(config) {
         await (0, judge_trigger_1.judgeTrigger)("0", true);
+        await (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.idle);
         try {
             const session = await this.sessionRepository.create({
                 theme: config.theme,
@@ -69,6 +70,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         }
     }
     async startSession(sessionId) {
+        (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.idle);
         try {
             const session = await this.sessionRepository.findById(sessionId);
             if (!session) {
@@ -107,7 +109,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 { role: "system", content: systemPrompt },
                 { role: "user", content: session.theme },
             ], "gpt-4o-mini"));
-            const startMessage = `魔法の天秤が真実を測る時が来たのじゃ。議題は「${session.theme}」じゃ。3回の弁論で真理を探るのじゃ。太陽の皿は${result.right}、月の皿は${result.left}の立場を担うのじゃ。`;
+            const startMessage = `魔法の天秤で真実を測る時が来たのじゃ。議題は「${session.theme}」じゃ。3回の弁論で真理を探るのじゃ。太陽の皿は${result.right}、月の皿は${result.left}の立場を担うのじゃ。`;
             await this.aiResponseRepository.create({
                 sessionId,
                 turnIndex: 0,
@@ -127,7 +129,8 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 text: beaverRightMessage,
             });
             setTimeout(() => {
-                (0, judge_trigger_1.judgeTrigger)("30");
+                (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.right);
+                (0, judge_trigger_1.judgeTrigger)("35");
             }, 3000);
             await this.generateAndBroadcastAudioSync(sessionId, beaverRightMessage, () => {
                 this.wsConnection.broadcastToSession(sessionId, "beaver:right_instruction", {
@@ -136,7 +139,8 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 });
             });
             await (0, timer_1.timer)(4000);
-            await (0, judge_trigger_1.judgeTrigger)("-30");
+            (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.left);
+            await (0, judge_trigger_1.judgeTrigger)("-35");
             const beaverLeftMessage = `次に左の者、月の皿にビーバーを配置するのじゃ`;
             await this.aiResponseRepository.create({
                 sessionId,
@@ -151,6 +155,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             });
             await (0, timer_1.timer)(4000);
             await (0, judge_trigger_1.judgeTrigger)("0");
+            await (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.idle);
             const debateStartMessage = `それでは弁論を開始するのじゃ。まずは太陽の代弁者から、15秒で聞かせてくれい。`;
             await this.aiResponseRepository.create({
                 sessionId,
@@ -163,6 +168,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                     message: debateStartMessage,
                 });
             });
+            await (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.right);
             await this.startTurn(sessionId, 1, client_1.Side.RIGHT);
             this.logger.log(`Session ${sessionId} started`);
         }
@@ -209,6 +215,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                     await (0, judge_trigger_1.judgeTrigger)("0", true);
                 }
                 else {
+                    (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.idle);
                     await (0, judge_trigger_1.judgeTrigger)("0");
                 }
                 const turnMessage = turnIndex === 3
@@ -387,6 +394,11 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                     rate: evaluation,
                     message: evaluationMessage,
                 });
+                (0, judge_trigger_1.ledTrigger)(evaluation > 0.3
+                    ? judge_trigger_1.State.right
+                    : evaluation < -0.3
+                        ? judge_trigger_1.State.left
+                        : judge_trigger_1.State.idle);
                 await (0, judge_trigger_1.judgeTrigger)((evaluation * 55).toString());
             });
             if (advantageMessage) {
@@ -440,6 +452,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             });
             const judgmentPromise = this.performFinalJudgment(sessionId);
             await this.generateAndBroadcastAudioSync(sessionId, judgingMessage, async () => {
+                (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.loading);
                 await this.wsConnection.broadcastToSession(sessionId, "judgment:started", {
                     sessionId,
                     message: judgingMessage,
@@ -481,9 +494,11 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 });
                 await this.wsConnection.broadcastToSession(sessionId, "loading:stop", {});
                 await (0, timer_1.timer)(2000);
+                (0, judge_trigger_1.ledTrigger)(winner === client_1.Side.RIGHT ? judge_trigger_1.State.right : judge_trigger_1.State.left);
                 await (0, judge_trigger_1.judgeTrigger)(winner === client_1.Side.RIGHT ? "35" : "-35");
             });
             await (0, timer_1.timer)(3000);
+            (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.idle);
             await (0, judge_trigger_1.judgeTrigger)("0");
             await this.finishSession(sessionId);
         }

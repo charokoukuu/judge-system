@@ -12,7 +12,7 @@ import { OpenaiService } from "../openai/openai.service";
 import { StylebartService } from "../stylebart/stylebart.service";
 import { timer } from "src/util/timer";
 import { exampleUtterance } from "src/util/exampleMessage";
-import { judgeTrigger } from "src/util/judge-trigger";
+import { judgeTrigger, ledTrigger, State } from "src/util/judge-trigger";
 
 export interface DebateSessionConfig {
   theme: string;
@@ -94,6 +94,7 @@ export class DebateSessionService {
    */
   async createSession(config: DebateSessionConfig): Promise<string> {
     await judgeTrigger("0", true);
+    await ledTrigger(State.idle);
     try {
       const session = await this.sessionRepository.create({
         theme: config.theme,
@@ -115,6 +116,7 @@ export class DebateSessionService {
    * セッションを開始（READY状態に移行）
    */
   async startSession(sessionId: string): Promise<void> {
+    ledTrigger(State.idle);
     try {
       const session = await this.sessionRepository.findById(sessionId);
       if (!session) {
@@ -169,7 +171,7 @@ export class DebateSessionService {
       );
 
       // 開始アナウンスを作成
-      const startMessage = `魔法の天秤が真実を測る時が来たのじゃ。議題は「${session.theme}」じゃ。3回の弁論で真理を探るのじゃ。太陽の皿は${result.right}、月の皿は${result.left}の立場を担うのじゃ。`;
+      const startMessage = `魔法の天秤で真実を測る時が来たのじゃ。議題は「${session.theme}」じゃ。3回の弁論で真理を探るのじゃ。太陽の皿は${result.right}、月の皿は${result.left}の立場を担うのじゃ。`;
 
       // AIアナウンスを保存
       await this.aiResponseRepository.create({
@@ -197,7 +199,8 @@ export class DebateSessionService {
       });
 
       setTimeout(() => {
-        judgeTrigger("30");
+        ledTrigger(State.right);
+        judgeTrigger("35");
       }, 3000);
       await this.generateAndBroadcastAudioSync(
         sessionId,
@@ -214,7 +217,8 @@ export class DebateSessionService {
         }
       );
       await timer(4000);
-      await judgeTrigger("-30");
+      ledTrigger(State.left);
+      await judgeTrigger("-35");
 
       // ビーバー配置の指示メッセージ（左側用）
       const beaverLeftMessage = `次に左の者、月の皿にビーバーを配置するのじゃ`;
@@ -243,6 +247,7 @@ export class DebateSessionService {
       await timer(4000);
 
       await judgeTrigger("0");
+      await ledTrigger(State.idle);
       // 弁論開始メッセージ
       const debateStartMessage = `それでは弁論を開始するのじゃ。まずは太陽の代弁者から、15秒で聞かせてくれい。`;
 
@@ -266,6 +271,7 @@ export class DebateSessionService {
           );
         }
       );
+      await ledTrigger(State.right);
 
       // 音声再生完了後に第1ターンを開始
       await this.startTurn(sessionId, 1, Side.RIGHT);
@@ -326,6 +332,7 @@ export class DebateSessionService {
         if (turnIndex === 1) {
           await judgeTrigger("0", true);
         } else {
+          ledTrigger(State.idle);
           await judgeTrigger("0");
         }
         const turnMessage =
@@ -601,6 +608,15 @@ export class DebateSessionService {
             rate: evaluation,
             message: evaluationMessage,
           });
+          // 評価結果をLEDに反映
+          ledTrigger(
+            evaluation > 0.3
+              ? State.right
+              : evaluation < -0.3
+                ? State.left
+                : State.idle
+          );
+          // ジャッジトリガーを更新
           await judgeTrigger((evaluation * 55).toString());
         }
       );
@@ -685,6 +701,7 @@ export class DebateSessionService {
         sessionId,
         judgingMessage,
         async () => {
+          ledTrigger(State.loading);
           await this.wsConnection.broadcastToSession(
             sessionId,
             "judgment:started",
@@ -757,11 +774,13 @@ export class DebateSessionService {
         );
 
         await timer(2000);
+        ledTrigger(winner === Side.RIGHT ? State.right : State.left);
         await judgeTrigger(winner === Side.RIGHT ? "35" : "-35");
       });
 
       // セッション終了
       await timer(3000);
+      ledTrigger(State.idle);
       await judgeTrigger("0");
       await this.finishSession(sessionId);
     } catch (error) {
