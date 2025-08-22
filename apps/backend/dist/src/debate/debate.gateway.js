@@ -153,20 +153,24 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
     }
     async handleAudioChunk(payload, client) {
         try {
+            this.logger.log(`[DEBUG] Audio chunk received from client ${client.id}`);
             let audioBuffer;
             if (typeof payload.chunk === "string") {
                 audioBuffer = Buffer.from(payload.chunk, "base64");
+                this.logger.log(`[DEBUG] Processed Base64 audio chunk: ${audioBuffer.length} bytes`);
             }
             else if (payload.chunk instanceof ArrayBuffer) {
                 audioBuffer = Buffer.from(payload.chunk);
+                this.logger.log(`[DEBUG] Processed ArrayBuffer audio chunk: ${audioBuffer.length} bytes`);
             }
             else {
-                this.logger.warn(`Unexpected audio chunk format from ${client.id}`);
+                this.logger.warn(`Unexpected audio chunk format from ${client.id}:`, typeof payload.chunk);
                 return;
             }
             const clientBuffers = this.audioBuffers.get(client.id) || [];
             clientBuffers.push(audioBuffer);
             this.audioBuffers.set(client.id, clientBuffers);
+            this.logger.log(`[DEBUG] Total audio chunks for client ${client.id}: ${clientBuffers.length}, total bytes: ${clientBuffers.reduce((sum, buf) => sum + buf.length, 0)}`);
         }
         catch (error) {
             this.logger.error(`Failed to process audio chunk: ${error.message}`);
@@ -175,14 +179,17 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
     async handleAudioStop(payload, client) {
         try {
             this.logger.log(`Audio stop from client ${client.id}`);
+            await new Promise((resolve) => setTimeout(resolve, 100));
             const clientData = this.wsConnection.getClient(client.id);
             this.logger.debug(`Client data for ${client.id}: sessionId=${clientData?.sessionId}, role=${clientData?.role}, side=${clientData?.participantSide}`);
             if (!clientData?.sessionId) {
-                this.logger.warn(`Client ${client.id} not connected to session - sessionId: ${clientData?.sessionId}`);
-                return;
+                this.logger.log(`[テーマ入力] Client ${client.id} not connected to session - treating as theme input`);
+            }
+            else {
             }
             const clientBuffers = this.audioBuffers.get(client.id) || [];
             this.audioBuffers.delete(client.id);
+            this.logger.log(`[DEBUG] Audio buffer check - client ${client.id} has ${clientBuffers.length} chunks, total bytes: ${clientBuffers.reduce((sum, buf) => sum + buf.length, 0)}`);
             if (clientBuffers.length === 0) {
                 this.logger.warn(`No audio data received from client ${client.id}`);
                 return;
@@ -200,6 +207,15 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
                 this.logger.error(`[STT] 音声認識失敗 - クライアント: ${client.id}, エラー: ${error.message}`);
                 client.emit(types_1.S2C_EVENTS.ERROR, {
                     message: `音声認識に失敗しました: ${error.message}`,
+                });
+                return;
+            }
+            if (!clientData?.sessionId) {
+                this.logger.log(`[テーマ入力] 音声認識結果をクライアントに直接送信: "${finalText}"`);
+                client.emit(types_1.S2C_EVENTS.TRANSCRIPT_FINAL, {
+                    text: finalText,
+                    clientId: client.id,
+                    isThemeInput: true,
                 });
                 return;
             }

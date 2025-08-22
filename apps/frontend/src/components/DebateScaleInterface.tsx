@@ -7,9 +7,16 @@ import { useRecording } from "../hooks/useRecording";
 export default function DebateScaleInterface() {
   const [debateTheme, setDebateTheme] = useState("");
   const [isDebateStarted, setIsDebateStarted] = useState(false);
+  const [isThemeRecording, setIsThemeRecording] = useState(false); // テーマ録音中フラグ
+  const [themeRecordingPhase, setThemeRecordingPhase] = useState<
+    "waiting" | "recording" | "processing"
+  >("waiting"); // テーマ録音フェーズ
+  const [themeRecordingCountdown, setThemeRecordingCountdown] = useState<
+    number | null
+  >(null); // テーマ録音のカウントダウン
   const [currentScore, setCurrentScore] = useState(0); // -1 to 1, 左(-1) ← → 右(1)
   const [aiSubtitle, setAiSubtitle] = useState(
-    "魔法の天秤の準備が整ったのじゃ。真実を見極める時じゃぞい。"
+    "魔法の天秤の準備が整ったのじゃ。スペースキーを押して論争のテーマを音声で入力するのじゃ。"
   );
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isCountdownActive, setIsCountdownActive] = useState(false);
@@ -37,6 +44,7 @@ export default function DebateScaleInterface() {
     isJudging,
     judgingMessage,
     verdict,
+    lastTranscript,
     createSession,
     startSession,
     sendAudioStart,
@@ -52,21 +60,36 @@ export default function DebateScaleInterface() {
   } = useRecording({
     enableKeyboardShortcuts: false, // キーボードショートカットを無効化
     onAudioChunk: (chunk: Blob) => {
+      console.log("[DEBUG] Audio chunk received:", chunk.size, "bytes");
       // 音声チャンクをWebSocketで送信
-      if (session?.sessionId) {
-        chunk.arrayBuffer().then((buffer) => {
-          sendAudioChunk(buffer);
-        });
-      }
+      chunk.arrayBuffer().then((buffer) => {
+        console.log(
+          "[DEBUG] Sending audio chunk to WebSocket:",
+          buffer.byteLength,
+          "bytes"
+        );
+        sendAudioChunk(buffer);
+      });
     },
     onRecordingStart: () => {
-      console.log("Recording started");
+      console.log(
+        "[DEBUG] Recording started - theme recording phase:",
+        themeRecordingPhase
+      );
+      // テーマ入力時はセッションIDなしでも録音開始
       if (session?.sessionId) {
         sendAudioStart(session.sessionId);
+      } else {
+        // テーマ入力用の録音開始（セッションIDなし）
+        sendAudioStart("theme-input");
       }
     },
     onRecordingStop: () => {
-      console.log("Recording stopped");
+      console.log(
+        "[DEBUG] Recording stopped - theme recording phase:",
+        themeRecordingPhase
+      );
+      console.trace("[DEBUG] Recording stop call stack");
       sendAudioStop();
     },
   });
@@ -90,8 +113,8 @@ export default function DebateScaleInterface() {
               countdownIntervalRef.current = null;
             }
 
-            // カウントダウン終了時に録音も自動停止
-            if (isRecordingAudio) {
+            // カウントダウン終了時に録音も自動停止（ただしテーマ録音中は除外）
+            if (isRecordingAudio && themeRecordingPhase !== "recording") {
               console.log(
                 "Auto-stopping recording due to countdown reaching 0"
               );
@@ -104,7 +127,7 @@ export default function DebateScaleInterface() {
         });
       }, 1000);
     },
-    [isRecordingAudio, stopRecording]
+    [isRecordingAudio, stopRecording, themeRecordingPhase]
   );
 
   const stopCountdown = useCallback(() => {
@@ -115,12 +138,12 @@ export default function DebateScaleInterface() {
       countdownIntervalRef.current = null;
     }
 
-    // カウントダウン停止時に録音も自動停止
-    if (isRecordingAudio) {
+    // カウントダウン停止時に録音も自動停止（ただしテーマ録音中は除外）
+    if (isRecordingAudio && themeRecordingPhase !== "recording") {
       console.log("Auto-stopping recording due to countdown end");
       stopRecording();
     }
-  }, [isRecordingAudio, stopRecording]);
+  }, [isRecordingAudio, stopRecording, themeRecordingPhase]);
 
   // クリーンアップ
   useEffect(() => {
@@ -321,6 +344,54 @@ export default function DebateScaleInterface() {
     stopRecording,
   ]);
 
+  // テーマ音声認識結果の処理
+  useEffect(() => {
+    console.log("[テーマ音声認識] lastTranscript更新:", lastTranscript);
+    console.log("[テーマ音声認識] 現在のフェーズ:", themeRecordingPhase);
+
+    if (
+      lastTranscript &&
+      lastTranscript.isThemeInput &&
+      themeRecordingPhase === "processing"
+    ) {
+      console.log("[テーマ音声認識] テーマを設定:", lastTranscript.text);
+      setDebateTheme(lastTranscript.text);
+      setThemeRecordingPhase("waiting");
+      setAiSubtitle(
+        `テーマ「${lastTranscript.text}」を受け取ったのじゃ。スペースキーを押して儀式を開始するのじゃ。`
+      );
+    }
+  }, [lastTranscript, themeRecordingPhase]);
+
+  // スペースキーでテーマ録音を開始（10秒間自動録音）
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // デバッグ中は除外、またはセッション開始後は除外
+      if (isDebateStarted) return;
+
+      if (event.code === "Space" && !event.repeat) {
+        event.preventDefault();
+
+        if (themeRecordingPhase === "waiting") {
+          // テーマが未設定またはテーマ録音待ち状態
+          if (!debateTheme.trim()) {
+            startThemeRecording();
+          } else {
+            // テーマが既に設定されている場合はセッション開始
+            createSession(debateTheme.trim());
+          }
+        }
+      }
+    };
+
+    // キーアップは不要（10秒間自動録音なので）
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isDebateStarted, themeRecordingPhase, debateTheme, createSession]);
+
   // セッションが作成されたら自動的に開始状態に
   useEffect(() => {
     if (session && !isDebateStarted) {
@@ -336,6 +407,58 @@ export default function DebateScaleInterface() {
     if (!debateTheme.trim()) return;
 
     createSession(debateTheme.trim());
+  };
+
+  // テーマ録音を開始（10秒間自動録音）
+  const startThemeRecording = () => {
+    console.log("[テーマ録音] 10秒間の録音開始");
+    setThemeRecordingPhase("recording");
+    setThemeRecordingCountdown(5);
+    setAiSubtitle("5秒間でテーマを話してくれい。");
+
+    // 録音開始
+    console.log("[DEBUG] About to call startRecording()");
+    startRecording();
+    console.log("[DEBUG] startRecording() called");
+
+    // カウントダウン開始
+    let remainingTime = 5;
+    const countdownInterval = setInterval(() => {
+      remainingTime -= 1;
+      console.log("[DEBUG] Countdown:", remainingTime);
+      setThemeRecordingCountdown(remainingTime);
+
+      if (remainingTime <= 0) {
+        clearInterval(countdownInterval);
+        console.log("[テーマ録音] 10秒経過により自動停止");
+        // 録音自動停止
+        setThemeRecordingPhase("processing");
+        setThemeRecordingCountdown(null);
+        setAiSubtitle("音声を解析中じゃ。少し待つのじゃ...");
+        console.log("[DEBUG] About to call stopRecording() after countdown");
+        stopRecording();
+        console.log("[DEBUG] stopRecording() called after countdown");
+
+        // 5秒後に音声認識結果を待つ（実際はWebSocketからの結果を待つ）
+        setTimeout(() => {
+          // 状態を直接チェックせず、常にタイムアウト処理を実行
+          console.log("[テーマ録音] タイムアウトチェック実行");
+          setAiSubtitle(
+            "音声認識に失敗したのじゃ。もう一度スペースキーで試してくれい。"
+          );
+          setThemeRecordingPhase("waiting");
+        }, 5000);
+      }
+    }, 1000);
+  };
+
+  // テーマ録音を停止（手動停止用）
+  const stopThemeRecording = () => {
+    console.log("[テーマ録音] 手動録音停止");
+    setThemeRecordingPhase("processing");
+    setThemeRecordingCountdown(null);
+    setAiSubtitle("音声を解析中じゃ。少し待つのじゃ...");
+    stopRecording();
   };
 
   const handleMicToggle = () => {
@@ -728,39 +851,60 @@ export default function DebateScaleInterface() {
             /* 魔法の開始前画面 */
             <div className="max-w-lg w-full space-y-8 relative z-10">
               {/* 魔法の書物風枠 */}
-              <div className="bg-gradient-to-br from-purple-900/80 to-indigo-900/80 backdrop-blur-sm rounded-2xl border-4 border-yellow-400/50 p-8 shadow-2xl shadow-purple-500/30">
-                <div className="text-center mb-8">
-                  <div className="text-4xl mb-4">📜</div>
-                  <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-pink-300 mb-2 font-serif">
-                    論争の書を記せ
+              <div className="bg-gradient-to-br from-purple-900/80 to-indigo-900/80 backdrop-blur-sm rounded-2xl border-4 border-yellow-400/50 p-12 shadow-2xl shadow-purple-500/30">
+                <div className="text-center">
+                  <div className="text-6xl mb-8">✨</div>
+                  <h2 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-pink-300 mb-6 font-serif">
+                    魔法の天秤
                   </h2>
-                  <p className="text-purple-200 text-sm italic">
-                    〜 魔法の天秤が真実を示さん 〜
-                  </p>
-                </div>
 
-                <div className="space-y-6">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={debateTheme}
-                      onChange={(e) => setDebateTheme(e.target.value)}
-                      placeholder="例: 魔法は科学を超越するか..."
-                      className="w-full p-4 text-lg rounded-xl border-2 border-purple-400/30 bg-purple-900/30 text-white placeholder-purple-300/60 focus:border-yellow-400/60 focus:outline-none focus:ring-2 focus:ring-yellow-400/20 transition-all backdrop-blur-sm"
-                    />
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-purple-300">
-                      ✍️
+                  {/* テーマ表示（設定されている場合） */}
+                  {debateTheme && (
+                    <div className="mb-6 p-4 bg-purple-800/30 rounded-xl border border-purple-400/30">
+                      <p className="text-purple-200 text-sm mb-2">
+                        論争のテーマ:
+                      </p>
+                      <p className="text-white text-lg font-semibold">
+                        "{debateTheme}"
+                      </p>
                     </div>
-                  </div>
+                  )}
 
-                  <button
-                    onClick={handleStartDebate}
-                    disabled={!debateTheme.trim() || !isConnected}
-                    className="w-full py-4 text-xl font-bold rounded-xl bg-gradient-to-r from-yellow-500 via-pink-500 to-purple-500 text-white hover:from-yellow-400 hover:via-pink-400 hover:to-purple-400 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed transition-all transform hover:scale-105 shadow-lg hover:shadow-xl shadow-purple-500/30 relative overflow-hidden"
-                  >
-                    <span className="relative z-10">🔮 魔法の儀式を開始</span>
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
-                  </button>
+                  {/* 録音状態による表示切り替え */}
+                  {themeRecordingPhase === "recording" ? (
+                    <div className="space-y-4">
+                      <div className="w-16 h-16 mx-auto bg-red-500 rounded-full animate-pulse flex items-center justify-center">
+                        <div className="w-8 h-8 bg-white rounded-full"></div>
+                      </div>
+                      <p className="text-red-300 text-lg font-semibold">
+                        🎤 録音中... {themeRecordingCountdown}秒
+                      </p>
+                      <p className="text-purple-200 text-sm">
+                        テーマを話してください
+                      </p>
+                    </div>
+                  ) : themeRecordingPhase === "processing" ? (
+                    <div className="space-y-4">
+                      <div className="w-16 h-16 mx-auto border-4 border-yellow-300 border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-yellow-300 text-lg font-semibold">
+                        🔮 解析中...
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="text-8xl mb-4 animate-bounce">⌨️</div>
+                      <p className="text-2xl font-bold text-yellow-300 mb-2">
+                        {debateTheme
+                          ? "スペースキーで開始"
+                          : "スペースキーでテーマ入力"}
+                      </p>
+                      <p className="text-purple-200 text-sm italic">
+                        {debateTheme
+                          ? "〜 魔法の儀式を開始するのじゃ 〜"
+                          : "〜 音声で論争のテーマを入力するのじゃ 〜"}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -70,6 +70,13 @@ export const useDebateWebSocket = () => {
     message: string;
   } | null>(null);
 
+  // 最新の音声認識結果（テーマ入力用）
+  const [lastTranscript, setLastTranscript] = useState<{
+    text: string;
+    timestamp: number;
+    isThemeInput?: boolean;
+  } | null>(null);
+
   // デバッグ用：状態変更を監視
   useEffect(() => {
     console.log(
@@ -387,11 +394,31 @@ export const useDebateWebSocket = () => {
     // 発話受信
     socket.on(S2C_EVENTS.TRANSCRIPT_FINAL, (data: TranscriptFinalPayload) => {
       console.log("[STT] 音声認識結果を受信:", data);
-      const side = (data as any).side;
-      const sideText = side === "RIGHT" ? "右" : "左";
-      const turnText = `ターン${(data as any).turnIndex}`;
-      console.log(`[STT] ${turnText} ${sideText}側: "${data.text}"`);
-      addMessage(`${turnText} ${sideText}: ${data.text}`, "transcript", side);
+
+      // 最新の音声認識結果を保存（テーマ入力用）
+      const isThemeInput = !session || session.state === "IDLE"; // セッション開始前はテーマ入力とみなす
+      console.log("[STT] テーマ入力判定:", {
+        isThemeInput,
+        sessionExists: !!session,
+        sessionState: session?.state,
+      });
+
+      setLastTranscript({
+        text: data.text,
+        timestamp: Date.now(),
+        isThemeInput,
+      });
+
+      // セッション中の発話処理
+      if (session && session.state !== "IDLE") {
+        const side = (data as any).side;
+        const sideText = side === "RIGHT" ? "右" : "左";
+        const turnText = `ターン${(data as any).turnIndex}`;
+        console.log(`[STT] ${turnText} ${sideText}側: "${data.text}"`);
+        addMessage(`${turnText} ${sideText}: ${data.text}`, "transcript", side);
+      } else {
+        console.log(`[STT] テーマ入力として処理: "${data.text}"`);
+      }
     });
 
     // ターン評価
@@ -548,16 +575,24 @@ export const useDebateWebSocket = () => {
   );
 
   const sendAudioStart = useCallback((sessionId: string) => {
+    console.log("[音声送信] sendAudioStart呼び出し:", {
+      sessionId,
+      connected: socketRef.current?.connected,
+    });
+
     if (!socketRef.current?.connected) {
+      console.error("[音声送信] WebSocketに接続されていません");
       setError("WebSocketに接続されていません");
       return;
     }
 
+    console.log("[音声送信] audio:startイベントを送信");
     socketRef.current.emit("audio:start", { sessionId });
   }, []);
 
   const sendAudioChunk = useCallback((chunk: ArrayBuffer) => {
     if (!socketRef.current?.connected) {
+      console.log("[DEBUG] WebSocket not connected, skipping audio chunk");
       return;
     }
 
@@ -568,6 +603,11 @@ export const useDebateWebSocket = () => {
       .join("");
     const base64 = btoa(binaryString);
 
+    console.log(
+      "[DEBUG] Emitting audio:chunk event with",
+      chunk.byteLength,
+      "bytes of data"
+    );
     socketRef.current.emit("audio:chunk", { chunk: base64 });
   }, []);
 
@@ -598,6 +638,7 @@ export const useDebateWebSocket = () => {
     isJudging,
     judgingMessage,
     verdict,
+    lastTranscript,
     createSession,
     joinSession,
     startSession,

@@ -240,17 +240,28 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket
   ): Promise<void> {
     try {
+      this.logger.log(`[DEBUG] Audio chunk received from client ${client.id}`);
+
       // 音声チャンクをバッファに変換（実際の形式に応じて調整）
       let audioBuffer: Buffer;
 
       if (typeof payload.chunk === "string") {
         // Base64エンコードされたデータの場合
         audioBuffer = Buffer.from(payload.chunk, "base64");
+        this.logger.log(
+          `[DEBUG] Processed Base64 audio chunk: ${audioBuffer.length} bytes`
+        );
       } else if (payload.chunk instanceof ArrayBuffer) {
         // ArrayBufferの場合
         audioBuffer = Buffer.from(payload.chunk);
+        this.logger.log(
+          `[DEBUG] Processed ArrayBuffer audio chunk: ${audioBuffer.length} bytes`
+        );
       } else {
-        this.logger.warn(`Unexpected audio chunk format from ${client.id}`);
+        this.logger.warn(
+          `Unexpected audio chunk format from ${client.id}:`,
+          typeof payload.chunk
+        );
         return;
       }
 
@@ -259,8 +270,9 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
       clientBuffers.push(audioBuffer);
       this.audioBuffers.set(client.id, clientBuffers);
 
-      // 高頻度イベントのため、ログは最小限に
-      // this.logger.debug(`Audio chunk received from ${client.id}: ${audioBuffer.length} bytes`);
+      this.logger.log(
+        `[DEBUG] Total audio chunks for client ${client.id}: ${clientBuffers.length}, total bytes: ${clientBuffers.reduce((sum, buf) => sum + buf.length, 0)}`
+      );
     } catch (error) {
       this.logger.error(`Failed to process audio chunk: ${error.message}`);
     }
@@ -274,6 +286,9 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       this.logger.log(`Audio stop from client ${client.id}`);
 
+      // 音声チャンクが遅れて到着する可能性があるため、少し待つ
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       const clientData = this.wsConnection.getClient(client.id);
       // 循環参照を避けるために必要な情報のみをログ出力
       this.logger.debug(
@@ -281,18 +296,24 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
       );
 
       if (!clientData?.sessionId) {
-        this.logger.warn(
-          `Client ${client.id} not connected to session - sessionId: ${clientData?.sessionId}`
+        this.logger.log(
+          `[テーマ入力] Client ${client.id} not connected to session - treating as theme input`
         );
-        return;
-      }
 
-      // 制約解除：participantSideがなくても処理を続行
-      // （後でeffectiveSideとして扱う）
+        // テーマ入力用の処理として続行
+        // 音声認識だけ行って結果を返す
+      } else {
+        // 制約解除：participantSideがなくても処理を続行
+        // （後でeffectiveSideとして扱う）
+      }
 
       // 蓄積された音声データを取得
       const clientBuffers = this.audioBuffers.get(client.id) || [];
       this.audioBuffers.delete(client.id); // クリーンアップ
+
+      this.logger.log(
+        `[DEBUG] Audio buffer check - client ${client.id} has ${clientBuffers.length} chunks, total bytes: ${clientBuffers.reduce((sum, buf) => sum + buf.length, 0)}`
+      );
 
       if (clientBuffers.length === 0) {
         this.logger.warn(`No audio data received from client ${client.id}`);
@@ -323,6 +344,21 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.emit(S2C_EVENTS.ERROR, {
           message: `音声認識に失敗しました: ${error.message}`,
         });
+        return;
+      }
+
+      // テーマ入力の場合は音声認識結果を直接返す
+      if (!clientData?.sessionId) {
+        this.logger.log(
+          `[テーマ入力] 音声認識結果をクライアントに直接送信: "${finalText}"`
+        );
+
+        client.emit(S2C_EVENTS.TRANSCRIPT_FINAL, {
+          text: finalText,
+          clientId: client.id,
+          isThemeInput: true,
+        });
+
         return;
       }
 

@@ -36,6 +36,9 @@ export class OpenaiService {
     formData.append("model", "gpt-4o-mini-transcribe"); // gpt-4o-mini-transcribe is the correct model for transcription
 
     try {
+      this.logger.log(
+        `[DEBUG] Sending transcription request to OpenAI with ${audioBuffer.length} bytes`
+      );
       const response = await axios.post(this.transcribeUrl, formData, {
         headers: {
           ...formData.getHeaders(),

@@ -48,9 +48,18 @@ export const useRecording = ({
       mediaRecorderRef.current = recorder;
 
       recorder.addEventListener("dataavailable", (event) => {
-        console.log("Audio data available:", event.data.size, "bytes");
+        console.log(
+          "Audio data available:",
+          event.data.size,
+          "bytes",
+          "type:",
+          event.data.type
+        );
         if (event.data.size > 0) {
+          console.log("Calling onAudioChunk with data size:", event.data.size);
           onAudioChunk(event.data);
+        } else {
+          console.warn("Audio data available but size is 0");
         }
       });
 
@@ -64,8 +73,10 @@ export const useRecording = ({
         setIsRecording(false); // stop イベントで状態を更新
       });
 
-      recorder.start(500); // Collect chunks every 500ms
+      recorder.start(100); // Start recording with small chunks to ensure continuous data flow
       console.log("Recording start requested, calling onRecordingStart");
+      console.log("MediaRecorder state after start():", recorder.state);
+      console.log("MediaRecorder mimeType:", recorder.mimeType);
       onRecordingStart();
     } catch (err) {
       console.error("Error starting recording:", err);

@@ -35,6 +35,7 @@ let OpenaiService = OpenaiService_1 = class OpenaiService {
         });
         formData.append("model", "gpt-4o-mini-transcribe");
         try {
+            this.logger.log(`[DEBUG] Sending transcription request to OpenAI with ${audioBuffer.length} bytes`);
             const response = await axios_1.default.post(this.transcribeUrl, formData, {
                 headers: {
                     ...formData.getHeaders(),
