@@ -168,7 +168,6 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                     message: debateStartMessage,
                 });
             });
-            await (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.right);
             await this.startTurn(sessionId, 1, client_1.Side.RIGHT);
             this.logger.log(`Session ${sessionId} started`);
         }
@@ -215,9 +214,9 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                     await (0, judge_trigger_1.judgeTrigger)("0", true);
                 }
                 else {
-                    (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.idle);
                     await (0, judge_trigger_1.judgeTrigger)("0");
                 }
+                await (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.idle);
                 const turnMessage = turnIndex === 3
                     ? "最後の弁論じゃ。これまでの議論をまとめて話してくれい。"
                     : `第${turnIndex}回目の弁論を始めるのじゃ。`;
@@ -244,6 +243,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                     message: "おぬしの発言の時間じゃ。どうぞ話してくれい。",
                 });
             });
+            (0, judge_trigger_1.ledTrigger)(side === client_1.Side.RIGHT ? judge_trigger_1.State.recordingR : judge_trigger_1.State.recordingL);
             this.setTurnTimer(sessionId, turnIndex, side);
             this.wsConnection.broadcastToSession(sessionId, "turn:countdown_started", {
                 sessionId,
@@ -452,12 +452,14 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             });
             const judgmentPromise = this.performFinalJudgment(sessionId);
             await this.generateAndBroadcastAudioSync(sessionId, judgingMessage, async () => {
-                (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.loading);
+                (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.judging);
                 await this.wsConnection.broadcastToSession(sessionId, "judgment:started", {
                     sessionId,
                     message: judgingMessage,
                 });
             });
+            await (0, timer_1.timer)(2000);
+            await (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.loading);
             this.wsConnection.broadcastToSession(sessionId, "loading:start", {
                 sessionId,
                 message: "魔法の天秤が真実を測定中じゃ...",
@@ -494,7 +496,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 });
                 await this.wsConnection.broadcastToSession(sessionId, "loading:stop", {});
                 await (0, timer_1.timer)(2000);
-                (0, judge_trigger_1.ledTrigger)(winner === client_1.Side.RIGHT ? judge_trigger_1.State.right : judge_trigger_1.State.left);
+                (0, judge_trigger_1.ledTrigger)(winner === client_1.Side.RIGHT ? judge_trigger_1.State.finishR : judge_trigger_1.State.finishL);
                 await (0, judge_trigger_1.judgeTrigger)(winner === client_1.Side.RIGHT ? "35" : "-35");
             });
             await (0, timer_1.timer)(3000);

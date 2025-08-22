@@ -271,7 +271,6 @@ export class DebateSessionService {
           );
         }
       );
-      await ledTrigger(State.right);
 
       // 音声再生完了後に第1ターンを開始
       await this.startTurn(sessionId, 1, Side.RIGHT);
@@ -332,9 +331,9 @@ export class DebateSessionService {
         if (turnIndex === 1) {
           await judgeTrigger("0", true);
         } else {
-          ledTrigger(State.idle);
           await judgeTrigger("0");
         }
+        await ledTrigger(State.idle);
         const turnMessage =
           turnIndex === 3
             ? "最後の弁論じゃ。これまでの議論をまとめて話してくれい。"
@@ -368,6 +367,8 @@ export class DebateSessionService {
           message: "おぬしの発言の時間じゃ。どうぞ話してくれい。",
         });
       });
+
+      ledTrigger(side === Side.RIGHT ? State.recordingR : State.recordingL);
 
       // 音声再生完了後にタイマーを開始
       this.setTurnTimer(sessionId, turnIndex, side);
@@ -701,7 +702,7 @@ export class DebateSessionService {
         sessionId,
         judgingMessage,
         async () => {
-          ledTrigger(State.loading);
+          ledTrigger(State.judging);
           await this.wsConnection.broadcastToSession(
             sessionId,
             "judgment:started",
@@ -712,13 +713,14 @@ export class DebateSessionService {
           );
         }
       );
+      await timer(2000);
 
       // ローディングアニメーション開始
+      await ledTrigger(State.loading);
       this.wsConnection.broadcastToSession(sessionId, "loading:start", {
         sessionId,
         message: "魔法の天秤が真実を測定中じゃ...",
       });
-
       // 判定処理の完了を待機
       const verdict = await judgmentPromise;
 
@@ -774,7 +776,7 @@ export class DebateSessionService {
         );
 
         await timer(2000);
-        ledTrigger(winner === Side.RIGHT ? State.right : State.left);
+        ledTrigger(winner === Side.RIGHT ? State.finishR : State.finishL);
         await judgeTrigger(winner === Side.RIGHT ? "35" : "-35");
       });
 
