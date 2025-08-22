@@ -40,9 +40,7 @@ export declare class DebateSessionService {
     private proceedToNext;
     startFinalJudgment(sessionId: string): Promise<void>;
     announceVerdict(sessionId: string, winner: Winner, rationale: string): Promise<void>;
-    finishSession(sessionId: string, reason?: string): Promise<void>;
-    stopSessionImmediately(sessionId: string): Promise<void>;
-    private clearPendingAudioForSession;
+    finishSession(sessionId: string): Promise<void>;
     processUtterance(sessionId: string, turnIndex: number, side: Side, text: string): Promise<void>;
     private evaluateTurn;
     private performFinalJudgment;

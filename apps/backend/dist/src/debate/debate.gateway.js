@@ -37,20 +37,6 @@ let DebateGateway = DebateGateway_1 = class DebateGateway {
         this.wsConnection.handleConnection(client);
     }
     handleDisconnect(client) {
-        const clientData = this.wsConnection.getClient(client.id);
-        if (clientData?.sessionId) {
-            const sessionRoom = this.wsConnection.getSessionRoom(clientData.sessionId);
-            if (sessionRoom && sessionRoom.state !== 'IDLE' && sessionRoom.state !== 'FINISHED') {
-                this.logger.log(`[セッション停止] クライアント ${client.id} の切断により、進行中のセッション ${clientData.sessionId} を停止します`);
-                this.debateSession.finishSession(clientData.sessionId, "disconnection")
-                    .then(() => {
-                    this.logger.log(`Session ${clientData.sessionId} stopped due to client disconnection`);
-                })
-                    .catch((error) => {
-                    this.logger.error(`Failed to stop session ${clientData.sessionId}: ${error.message}`);
-                });
-            }
-        }
         for (const [sessionId, sessionMapping,] of this.clientSideMapping.entries()) {
             if (sessionMapping.has(client.id)) {
                 sessionMapping.delete(client.id);

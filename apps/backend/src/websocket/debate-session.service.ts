@@ -290,13 +290,6 @@ export class DebateSessionService {
     side: Side
   ): Promise<void> {
     try {
-      // セッション状態チェック：終了済みの場合は処理を中断
-      const sessionRoom = this.wsConnection.getSessionRoom(sessionId);
-      if (!sessionRoom || sessionRoom.state === SessionState.FINISHED) {
-        this.logger.log(`Session ${sessionId} is finished, aborting startTurn`);
-        return;
-      }
-
       let newState: SessionState;
 
       // ターンに応じた状態を決定
@@ -443,13 +436,6 @@ export class DebateSessionService {
     side: Side
   ): Promise<void> {
     try {
-      // セッション状態チェック：終了済みの場合は処理を中断
-      const sessionRoom = this.wsConnection.getSessionRoom(sessionId);
-      if (!sessionRoom || sessionRoom.state === SessionState.FINISHED) {
-        this.logger.log(`Session ${sessionId} is finished, aborting endTurn`);
-        return;
-      }
-
       this.clearTurnTimer(sessionId);
 
       // 発話停止を通知
@@ -525,13 +511,6 @@ export class DebateSessionService {
    */
   async wrapUpTurn(sessionId: string, turnIndex: number): Promise<void> {
     try {
-      // セッション状態チェック：終了済みの場合は処理を中断
-      const sessionRoom = this.wsConnection.getSessionRoom(sessionId);
-      if (!sessionRoom || sessionRoom.state === SessionState.FINISHED) {
-        this.logger.log(`Session ${sessionId} is finished, aborting wrapUpTurn`);
-        return;
-      }
-
       let wrapUpState: SessionState;
 
       if (turnIndex === 1) {
@@ -667,13 +646,6 @@ export class DebateSessionService {
     sessionId: string,
     turnIndex: number
   ): Promise<void> {
-    // セッション状態チェック：終了済みの場合は処理を中断
-    const sessionRoom = this.wsConnection.getSessionRoom(sessionId);
-    if (!sessionRoom || sessionRoom.state === SessionState.FINISHED) {
-      this.logger.log(`Session ${sessionId} is finished, aborting proceedToNext`);
-      return;
-    }
-
     if (turnIndex < 3) {
       // 次のターンを開始
       setTimeout(() => {
@@ -692,13 +664,6 @@ export class DebateSessionService {
    */
   async startFinalJudgment(sessionId: string): Promise<void> {
     try {
-      // セッション状態チェック：終了済みの場合は処理を中断
-      const sessionRoom = this.wsConnection.getSessionRoom(sessionId);
-      if (!sessionRoom || sessionRoom.state === SessionState.FINISHED) {
-        this.logger.log(`Session ${sessionId} is finished, aborting startFinalJudgment`);
-        return;
-      }
-
       await judgeTrigger("0", true);
       await this.sessionRepository.updateState(sessionId, SessionState.JUDGING);
       this.wsConnection.updateSessionState(sessionId, SessionState.JUDGING);
@@ -807,85 +772,27 @@ export class DebateSessionService {
   /**
    * セッションを終了
    */
-  async finishSession(sessionId: string, reason?: string): Promise<void> {
+  async finishSession(sessionId: string): Promise<void> {
     try {
-      if (reason === "disconnection") {
-        // 切断時は即座に停止
-        await this.stopSessionImmediately(sessionId);
-        return;
-      }
-
       await this.sessionRepository.endSession(sessionId);
       this.wsConnection.updateSessionState(sessionId, SessionState.FINISHED);
 
       this.clearTurnTimer(sessionId);
 
-      const message = "魔法の天秤による弁論が終了したのじゃ。みなさん、ご苦労であった。";
+      const message =
+        "魔法の天秤による弁論が終了したのじゃ。みなさん、ご苦労であった。";
 
       await this.generateAndBroadcastAudioSync(sessionId, message, async () => {
         this.wsConnection.broadcastToSession(sessionId, "session:finished", {
           sessionId,
           message,
-          reason: reason || "completed",
         });
       });
 
-      this.logger.log(`Session ${sessionId} finished (reason: ${reason || "completed"})`);
+      this.logger.log(`Session ${sessionId} finished`);
     } catch (error) {
       this.logger.error(`Failed to finish session: ${error.message}`);
     }
-  }
-
-  /**
-   * セッションを即座に停止（切断時用）
-   */
-  async stopSessionImmediately(sessionId: string): Promise<void> {
-    try {
-      this.logger.log(`Immediately stopping session ${sessionId} due to disconnection`);
-
-      // 1. ターンタイマーをクリア
-      this.clearTurnTimer(sessionId);
-
-      // 2. 待機中の音声再生をキャンセル
-      this.clearPendingAudioForSession(sessionId);
-
-      // 3. セッション状態をFINISHEDに更新
-      await this.sessionRepository.endSession(sessionId);
-      this.wsConnection.updateSessionState(sessionId, SessionState.FINISHED);
-
-      // 4. 即座に終了通知を送信（音声なし）
-      this.wsConnection.broadcastToSession(sessionId, "session:finished", {
-        sessionId,
-        message: "参加者の接続が切れたため、魔法の天秤による弁論を中断しました。",
-        reason: "disconnection",
-        immediate: true,
-      });
-
-      this.logger.log(`Session ${sessionId} stopped immediately`);
-    } catch (error) {
-      this.logger.error(`Failed to stop session immediately: ${error.message}`);
-    }
-  }
-
-  /**
-   * 指定されたセッションの待機中音声再生をクリア
-   */
-  private clearPendingAudioForSession(sessionId: string): void {
-    const keysToDelete: string[] = [];
-    
-    for (const [key, pending] of this.pendingAudioPlaybacks.entries()) {
-      if (pending.sessionId === sessionId) {
-        // タイムアウトをクリア
-        if (pending.timeout) {
-          clearTimeout(pending.timeout);
-        }
-        keysToDelete.push(key);
-        this.logger.log(`Cleared pending audio for session ${sessionId}: "${pending.text}"`);
-      }
-    }
-    
-    // 待機リストから削除
-    keysToDelete.forEach(key => this.pendingAudioPlaybacks.delete(key));
   }
 
   /**
@@ -1012,13 +919,6 @@ ${leftText}
     sessionId: string
   ): Promise<{ sessionId: string; winner: Winner; rationale: string }> {
     try {
-      // セッション状態チェック：終了済みの場合は処理を中断
-      const sessionRoom = this.wsConnection.getSessionRoom(sessionId);
-      if (!sessionRoom || sessionRoom.state === SessionState.FINISHED) {
-        this.logger.log(`Session ${sessionId} is finished, aborting performFinalJudgment`);
-        throw new Error(`Session ${sessionId} has been terminated`);
-      }
-
       const session = await this.sessionRepository.findById(sessionId);
       if (!session) {
         throw new Error(`Session ${sessionId} not found`);
