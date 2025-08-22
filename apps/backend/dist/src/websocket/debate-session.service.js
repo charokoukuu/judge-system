@@ -175,6 +175,11 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
     }
     async startTurn(sessionId, turnIndex, side) {
         try {
+            const sessionRoom = this.wsConnection.getSessionRoom(sessionId);
+            if (!sessionRoom || sessionRoom.state === client_1.SessionState.FINISHED) {
+                this.logger.log(`Session ${sessionId} is finished, aborting startTurn`);
+                return;
+            }
             let newState;
             if (turnIndex === 1) {
                 newState =
@@ -277,6 +282,11 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
     }
     async endTurn(sessionId, turnIndex, side) {
         try {
+            const sessionRoom = this.wsConnection.getSessionRoom(sessionId);
+            if (!sessionRoom || sessionRoom.state === client_1.SessionState.FINISHED) {
+                this.logger.log(`Session ${sessionId} is finished, aborting endTurn`);
+                return;
+            }
             this.clearTurnTimer(sessionId);
             this.wsConnection.sendToSessionSide(sessionId, side, "turn:time_up", {
                 turnIndex,
@@ -328,6 +338,11 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
     }
     async wrapUpTurn(sessionId, turnIndex) {
         try {
+            const sessionRoom = this.wsConnection.getSessionRoom(sessionId);
+            if (!sessionRoom || sessionRoom.state === client_1.SessionState.FINISHED) {
+                this.logger.log(`Session ${sessionId} is finished, aborting wrapUpTurn`);
+                return;
+            }
             let wrapUpState;
             if (turnIndex === 1) {
                 wrapUpState = client_1.SessionState.TURN1_WRAPUP;
@@ -416,6 +431,11 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         }
     }
     async proceedToNext(sessionId, turnIndex) {
+        const sessionRoom = this.wsConnection.getSessionRoom(sessionId);
+        if (!sessionRoom || sessionRoom.state === client_1.SessionState.FINISHED) {
+            this.logger.log(`Session ${sessionId} is finished, aborting proceedToNext`);
+            return;
+        }
         if (turnIndex < 3) {
             setTimeout(() => {
                 this.startTurn(sessionId, turnIndex + 1, client_1.Side.RIGHT);
@@ -429,6 +449,11 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
     }
     async startFinalJudgment(sessionId) {
         try {
+            const sessionRoom = this.wsConnection.getSessionRoom(sessionId);
+            if (!sessionRoom || sessionRoom.state === client_1.SessionState.FINISHED) {
+                this.logger.log(`Session ${sessionId} is finished, aborting startFinalJudgment`);
+                return;
+            }
             await (0, judge_trigger_1.judgeTrigger)("0", true);
             await this.sessionRepository.updateState(sessionId, client_1.SessionState.JUDGING);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.JUDGING);
@@ -491,8 +516,12 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             this.logger.error(`Failed to announce verdict: ${error.message}`);
         }
     }
-    async finishSession(sessionId) {
+    async finishSession(sessionId, reason) {
         try {
+            if (reason === "disconnection") {
+                await this.stopSessionImmediately(sessionId);
+                return;
+            }
             await this.sessionRepository.endSession(sessionId);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.FINISHED);
             this.clearTurnTimer(sessionId);
@@ -501,13 +530,46 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 this.wsConnection.broadcastToSession(sessionId, "session:finished", {
                     sessionId,
                     message,
+                    reason: reason || "completed",
                 });
             });
-            this.logger.log(`Session ${sessionId} finished`);
+            this.logger.log(`Session ${sessionId} finished (reason: ${reason || "completed"})`);
         }
         catch (error) {
             this.logger.error(`Failed to finish session: ${error.message}`);
         }
+    }
+    async stopSessionImmediately(sessionId) {
+        try {
+            this.logger.log(`Immediately stopping session ${sessionId} due to disconnection`);
+            this.clearTurnTimer(sessionId);
+            this.clearPendingAudioForSession(sessionId);
+            await this.sessionRepository.endSession(sessionId);
+            this.wsConnection.updateSessionState(sessionId, client_1.SessionState.FINISHED);
+            this.wsConnection.broadcastToSession(sessionId, "session:finished", {
+                sessionId,
+                message: "参加者の接続が切れたため、魔法の天秤による弁論を中断しました。",
+                reason: "disconnection",
+                immediate: true,
+            });
+            this.logger.log(`Session ${sessionId} stopped immediately`);
+        }
+        catch (error) {
+            this.logger.error(`Failed to stop session immediately: ${error.message}`);
+        }
+    }
+    clearPendingAudioForSession(sessionId) {
+        const keysToDelete = [];
+        for (const [key, pending] of this.pendingAudioPlaybacks.entries()) {
+            if (pending.sessionId === sessionId) {
+                if (pending.timeout) {
+                    clearTimeout(pending.timeout);
+                }
+                keysToDelete.push(key);
+                this.logger.log(`Cleared pending audio for session ${sessionId}: "${pending.text}"`);
+            }
+        }
+        keysToDelete.forEach(key => this.pendingAudioPlaybacks.delete(key));
     }
     async processUtterance(sessionId, turnIndex, side, text) {
         this.logger.log(`[DB処理開始] processUtterance呼び出し - sessionId: ${sessionId}, turnIndex: ${turnIndex}, side: ${side}, text: "${text}"`);
@@ -590,6 +652,11 @@ ${leftText}
     }
     async performFinalJudgment(sessionId) {
         try {
+            const sessionRoom = this.wsConnection.getSessionRoom(sessionId);
+            if (!sessionRoom || sessionRoom.state === client_1.SessionState.FINISHED) {
+                this.logger.log(`Session ${sessionId} is finished, aborting performFinalJudgment`);
+                throw new Error(`Session ${sessionId} has been terminated`);
+            }
             const session = await this.sessionRepository.findById(sessionId);
             if (!session) {
                 throw new Error(`Session ${sessionId} not found`);

@@ -51,6 +51,29 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   handleDisconnect(client: Socket) {
+    // 切断されたクライアントのセッション情報を取得
+    const clientData = this.wsConnection.getClient(client.id);
+    
+    if (clientData?.sessionId) {
+      const sessionRoom = this.wsConnection.getSessionRoom(clientData.sessionId);
+      
+      // セッションが進行中（IDLE、FINISHEDでない）の場合は停止
+      if (sessionRoom && sessionRoom.state !== 'IDLE' && sessionRoom.state !== 'FINISHED') {
+        this.logger.log(
+          `[セッション停止] クライアント ${client.id} の切断により、進行中のセッション ${clientData.sessionId} を停止します`
+        );
+        
+        // セッションを停止（非同期で実行）
+        this.debateSession.finishSession(clientData.sessionId, "disconnection")
+          .then(() => {
+            this.logger.log(`Session ${clientData.sessionId} stopped due to client disconnection`);
+          })
+          .catch((error) => {
+            this.logger.error(`Failed to stop session ${clientData.sessionId}: ${error.message}`);
+          });
+      }
+    }
+
     // クライアントサイドマッピングをクリーンアップ
     for (const [
       sessionId,

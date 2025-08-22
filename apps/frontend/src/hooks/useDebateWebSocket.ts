@@ -238,6 +238,13 @@ export const useDebateWebSocket = () => {
     socket.on("disconnect", () => {
       console.log("WebSocket disconnected");
       setIsConnected(false);
+      
+      // 接続が切れた場合、進行中のセッションをクリア
+      if (session && session.state !== "IDLE" && session.state !== "FINISHED") {
+        console.log("Clearing active session due to disconnection:", session);
+        setSession(null);
+        addMessage("接続が切断されたため、セッションが停止されました", "system");
+      }
     });
 
     // デバッグ用：すべてのイベントをキャッチ
@@ -491,7 +498,13 @@ export const useDebateWebSocket = () => {
     // セッション終了
     socket.on("session:finished", (data: any) => {
       console.log("Session finished:", data);
-      addMessage(data.message, "system");
+      
+      if (data.reason === "disconnection") {
+        addMessage(data.message, "system");
+        setSession(null); // セッション状態をクリア
+      } else {
+        addMessage(data.message, "moderator");
+      }
     });
 
     // エラー
