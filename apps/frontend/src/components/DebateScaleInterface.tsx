@@ -506,7 +506,7 @@ export default function DebateScaleInterface() {
     if (!isSpeaking) return "";
 
     const shadowColor =
-      side === "LEFT" ? "shadow-red-400/50" : "shadow-blue-400/50";
+      side === "LEFT" ? "shadow-indigo-400/50" : "shadow-yellow-400/50";
     return `shadow-lg ${shadowColor}`;
   };
 
@@ -1051,24 +1051,24 @@ export default function DebateScaleInterface() {
                     <div className="w-0.5 h-8 bg-gradient-to-b from-gray-400 to-gray-600 mx-auto"></div>
                     {/* 左の魔法皿 */}
                     <div
-                      className={`${getPlateSize("LEFT")} bg-gradient-to-br from-red-500/40 to-pink-600/40 border-4 border-red-400 rounded-full flex items-center justify-center transition-all duration-300 ${getPlateEffects("LEFT")} ${session?.state?.includes("LEFT") ? "animate-pulse shadow-2xl shadow-red-400/70" : "shadow-xl shadow-red-400/30"} backdrop-blur-sm relative`}
+                      className={`${getPlateSize("LEFT")} bg-gradient-to-br from-indigo-500/40 to-purple-600/40 border-4 border-indigo-400 rounded-full flex items-center justify-center transition-all duration-300 ${getPlateEffects("LEFT")} ${session?.state?.includes("LEFT") ? "animate-pulse shadow-2xl shadow-indigo-400/70" : "shadow-xl shadow-indigo-400/30"} backdrop-blur-sm relative`}
                     >
                       {/* 皿の装飾背景 */}
-                      <div className="absolute inset-0 bg-gradient-to-br from-red-300/20 to-pink-500/20 rounded-full animate-pulse"></div>
+                      <div className="absolute inset-0 bg-gradient-to-br from-indigo-300/20 to-purple-500/20 rounded-full animate-pulse"></div>
 
                       {/* 外側の魔法のルーン */}
-                      <div className="absolute inset-0 rounded-full border-2 border-dashed border-red-300 opacity-70 animate-spin-slow"></div>
-                      <div className="absolute inset-2 rounded-full border-2 border-dotted border-pink-300 opacity-50 animate-reverse-spin"></div>
+                      <div className="absolute inset-0 rounded-full border-2 border-dashed border-indigo-300 opacity-70 animate-spin-slow"></div>
+                      <div className="absolute inset-2 rounded-full border-2 border-dotted border-purple-300 opacity-50 animate-reverse-spin"></div>
 
                       {/* 装飾的な宝石 */}
-                      <div className="absolute -top-1 left-1/4 w-2 h-2 bg-red-600 rounded-full animate-pulse shadow-lg shadow-red-600/50"></div>
-                      <div className="absolute -right-1 top-1/4 w-1.5 h-1.5 bg-pink-500 rounded-full animate-bounce shadow-lg shadow-pink-500/50"></div>
-                      <div className="absolute -bottom-1 right-1/4 w-2 h-2 bg-red-700 rounded-full animate-pulse delay-500 shadow-lg shadow-red-700/50"></div>
-                      <div className="absolute -left-1 bottom-1/4 w-1.5 h-1.5 bg-pink-600 rounded-full animate-bounce delay-700 shadow-lg shadow-pink-600/50"></div>
+                      <div className="absolute -top-1 left-1/4 w-2 h-2 bg-indigo-600 rounded-full animate-pulse shadow-lg shadow-indigo-600/50"></div>
+                      <div className="absolute -right-1 top-1/4 w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce shadow-lg shadow-purple-500/50"></div>
+                      <div className="absolute -bottom-1 right-1/4 w-2 h-2 bg-indigo-700 rounded-full animate-pulse delay-500 shadow-lg shadow-indigo-700/50"></div>
+                      <div className="absolute -left-1 bottom-1/4 w-1.5 h-1.5 bg-purple-600 rounded-full animate-bounce delay-700 shadow-lg shadow-purple-600/50"></div>
 
                       {/* メインシンボル */}
                       <span
-                        className={`text-red-200 font-bold ${getPlateTextSize("LEFT")} drop-shadow-2xl relative z-10`}
+                        className={`text-indigo-200 font-bold ${getPlateTextSize("LEFT")} drop-shadow-2xl relative z-10`}
                       >
                         🌙
                       </span>
@@ -1076,16 +1076,16 @@ export default function DebateScaleInterface() {
                       {/* アクティブ時の追加エフェクト */}
                       {session?.state?.includes("LEFT") && (
                         <>
-                          <div className="absolute -top-2 -right-2 text-red-300 text-lg animate-bounce">
+                          <div className="absolute -top-2 -right-2 text-indigo-300 text-lg animate-bounce">
                             ✨
                           </div>
-                          <div className="absolute -bottom-2 -left-2 text-pink-300 text-sm animate-pulse">
+                          <div className="absolute -bottom-2 -left-2 text-purple-300 text-sm animate-pulse">
                             ⭐
                           </div>
-                          <div className="absolute top-1/4 -left-3 text-red-200 text-xs animate-ping">
+                          <div className="absolute top-1/4 -left-3 text-indigo-200 text-xs animate-ping">
                             💫
                           </div>
-                          <div className="absolute bottom-1/4 -right-3 text-pink-200 text-xs animate-ping delay-500">
+                          <div className="absolute bottom-1/4 -right-3 text-purple-200 text-xs animate-ping delay-500">
                             ✦
                           </div>
                         </>
@@ -1099,24 +1099,24 @@ export default function DebateScaleInterface() {
                     <div className="w-0.5 h-8 bg-gradient-to-b from-gray-400 to-gray-600 mx-auto"></div>
                     {/* 右の魔法皿 */}
                     <div
-                      className={`${getPlateSize("RIGHT")} bg-gradient-to-br from-blue-500/40 to-cyan-600/40 border-4 border-blue-400 rounded-full flex items-center justify-center transition-all duration-300 ${getPlateEffects("RIGHT")} ${session?.state?.includes("RIGHT") ? "animate-pulse shadow-2xl shadow-blue-400/70" : "shadow-xl shadow-blue-400/30"} backdrop-blur-sm relative`}
+                      className={`${getPlateSize("RIGHT")} bg-gradient-to-br from-yellow-500/40 to-orange-600/40 border-4 border-yellow-400 rounded-full flex items-center justify-center transition-all duration-300 ${getPlateEffects("RIGHT")} ${session?.state?.includes("RIGHT") ? "animate-pulse shadow-2xl shadow-yellow-400/70" : "shadow-xl shadow-yellow-400/30"} backdrop-blur-sm relative`}
                     >
                       {/* 皿の装飾背景 */}
-                      <div className="absolute inset-0 bg-gradient-to-br from-blue-300/20 to-cyan-500/20 rounded-full animate-pulse"></div>
+                      <div className="absolute inset-0 bg-gradient-to-br from-yellow-300/20 to-orange-500/20 rounded-full animate-pulse"></div>
 
                       {/* 外側の魔法のルーン */}
-                      <div className="absolute inset-0 rounded-full border-2 border-dashed border-blue-300 opacity-70 animate-reverse-spin"></div>
-                      <div className="absolute inset-2 rounded-full border-2 border-dotted border-cyan-300 opacity-50 animate-spin-slow"></div>
+                      <div className="absolute inset-0 rounded-full border-2 border-dashed border-yellow-300 opacity-70 animate-reverse-spin"></div>
+                      <div className="absolute inset-2 rounded-full border-2 border-dotted border-orange-300 opacity-50 animate-spin-slow"></div>
 
                       {/* 装飾的な宝石 */}
-                      <div className="absolute -top-1 right-1/4 w-2 h-2 bg-blue-600 rounded-full animate-pulse shadow-lg shadow-blue-600/50"></div>
-                      <div className="absolute -left-1 top-1/4 w-1.5 h-1.5 bg-cyan-500 rounded-full animate-bounce shadow-lg shadow-cyan-500/50"></div>
-                      <div className="absolute -bottom-1 left-1/4 w-2 h-2 bg-blue-700 rounded-full animate-pulse delay-500 shadow-lg shadow-blue-700/50"></div>
-                      <div className="absolute -right-1 bottom-1/4 w-1.5 h-1.5 bg-cyan-600 rounded-full animate-bounce delay-700 shadow-lg shadow-cyan-600/50"></div>
+                      <div className="absolute -top-1 right-1/4 w-2 h-2 bg-yellow-600 rounded-full animate-pulse shadow-lg shadow-yellow-600/50"></div>
+                      <div className="absolute -left-1 top-1/4 w-1.5 h-1.5 bg-orange-500 rounded-full animate-bounce shadow-lg shadow-orange-500/50"></div>
+                      <div className="absolute -bottom-1 left-1/4 w-2 h-2 bg-yellow-700 rounded-full animate-pulse delay-500 shadow-lg shadow-yellow-700/50"></div>
+                      <div className="absolute -right-1 bottom-1/4 w-1.5 h-1.5 bg-orange-600 rounded-full animate-bounce delay-700 shadow-lg shadow-orange-600/50"></div>
 
                       {/* メインシンボル */}
                       <span
-                        className={`text-blue-200 font-bold ${getPlateTextSize("RIGHT")} drop-shadow-2xl relative z-10`}
+                        className={`text-yellow-200 font-bold ${getPlateTextSize("RIGHT")} drop-shadow-2xl relative z-10`}
                       >
                         ☀️
                       </span>
@@ -1124,16 +1124,16 @@ export default function DebateScaleInterface() {
                       {/* アクティブ時の追加エフェクト */}
                       {session?.state?.includes("RIGHT") && (
                         <>
-                          <div className="absolute -top-2 -left-2 text-blue-300 text-lg animate-bounce">
+                          <div className="absolute -top-2 -left-2 text-yellow-300 text-lg animate-bounce">
                             ✨
                           </div>
-                          <div className="absolute -bottom-2 -right-2 text-cyan-300 text-sm animate-pulse">
+                          <div className="absolute -bottom-2 -right-2 text-orange-300 text-sm animate-pulse">
                             ⭐
                           </div>
-                          <div className="absolute top-1/4 -right-3 text-blue-200 text-xs animate-ping">
+                          <div className="absolute top-1/4 -right-3 text-yellow-200 text-xs animate-ping">
                             💫
                           </div>
-                          <div className="absolute bottom-1/4 -left-3 text-cyan-200 text-xs animate-ping delay-500">
+                          <div className="absolute bottom-1/4 -left-3 text-orange-200 text-xs animate-ping delay-500">
                             ✦
                           </div>
                         </>
