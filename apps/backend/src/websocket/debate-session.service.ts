@@ -93,7 +93,7 @@ export class DebateSessionService {
    * 新しいディベートセッションを作成
    */
   async createSession(config: DebateSessionConfig): Promise<string> {
-    await judgeTrigger("0", true);
+    await judgeTrigger("0", { isMute: true });
     await ledTrigger(State.idle);
     try {
       const session = await this.sessionRepository.create({
@@ -329,7 +329,7 @@ export class DebateSessionService {
 
       if (side === Side.RIGHT) {
         if (turnIndex === 1) {
-          await judgeTrigger("0", true);
+          await judgeTrigger("0", { isMute: true });
         } else {
           await judgeTrigger("0");
         }
@@ -681,7 +681,7 @@ export class DebateSessionService {
    */
   async startFinalJudgment(sessionId: string): Promise<void> {
     try {
-      await judgeTrigger("0", true);
+      await judgeTrigger("0", { isMute: true });
       await this.sessionRepository.updateState(sessionId, SessionState.JUDGING);
       this.wsConnection.updateSessionState(sessionId, SessionState.JUDGING);
 
@@ -717,9 +717,10 @@ export class DebateSessionService {
 
       // ローディングアニメーション開始
       await ledTrigger(State.loading);
+      await judgeTrigger("0", { isMute: true, state: State.loading });
       this.wsConnection.broadcastToSession(sessionId, "loading:start", {
         sessionId,
-        message: "魔法の天秤が真実を測定中じゃ...",
+        message: "...",
       });
       // 判定処理の完了を待機
       const verdict = await judgmentPromise;

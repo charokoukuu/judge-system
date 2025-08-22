@@ -15,7 +15,8 @@ var State;
     State["finishL"] = "finishL";
     State["finishR"] = "finishR";
 })(State || (exports.State = State = {}));
-const judgeTrigger = async (message, isMute) => {
+const judgeTrigger = async (message, options) => {
+    const { isMute, state } = options || { state: State.idle };
     setTimeout(() => {
         if (!isMute) {
             (0, audioPlay_1.playLocalAudio)(audioPlay_1.playMode.GEAR);
@@ -23,6 +24,16 @@ const judgeTrigger = async (message, isMute) => {
     }, 1000);
     axios_1.default
         .post("http://localhost:9000/send/cybergear", {
+        message: `${message},${state}`,
+    })
+        .then((response) => {
+        console.log("Response:", response.data);
+    })
+        .catch((error) => {
+        console.error("Error:", error);
+    });
+    axios_1.default
+        .post("http://localhost:9000/send/dial", {
         message: message,
     })
         .then((response) => {

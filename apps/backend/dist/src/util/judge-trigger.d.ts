@@ -9,5 +9,8 @@ export declare enum State {
     finishL = "finishL",
     finishR = "finishR"
 }
-export declare const judgeTrigger: (message: string, isMute?: boolean) => Promise<void>;
+export declare const judgeTrigger: (message: string, options?: {
+    isMute?: boolean;
+    state?: State;
+}) => Promise<void>;
 export declare const ledTrigger: (state: State) => Promise<void>;

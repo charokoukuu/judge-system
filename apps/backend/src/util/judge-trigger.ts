@@ -13,7 +13,11 @@ export enum State {
   finishR = "finishR",
 }
 
-export const judgeTrigger = async (message: string, isMute?: boolean) => {
+export const judgeTrigger = async (
+  message: string,
+  options?: { isMute?: boolean; state?: State }
+) => {
+  const { isMute, state } = options || { state: State.idle };
   setTimeout(() => {
     if (!isMute) {
       playLocalAudio(playMode.GEAR);
@@ -21,6 +25,16 @@ export const judgeTrigger = async (message: string, isMute?: boolean) => {
   }, 1000);
   axios
     .post("http://localhost:9000/send/cybergear", {
+      message: `${message},${state}`,
+    })
+    .then((response) => {
+      console.log("Response:", response.data);
+    })
+    .catch((error) => {
+      console.error("Error:", error);
+    });
+  axios
+    .post("http://localhost:9000/send/dial", {
       message: message,
     })
     .then((response) => {

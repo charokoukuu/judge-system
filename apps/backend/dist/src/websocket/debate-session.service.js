@@ -54,7 +54,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         this.lastSentMessages = new Map();
     }
     async createSession(config) {
-        await (0, judge_trigger_1.judgeTrigger)("0", true);
+        await (0, judge_trigger_1.judgeTrigger)("0", { isMute: true });
         await (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.idle);
         try {
             const session = await this.sessionRepository.create({
@@ -211,7 +211,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             });
             if (side === client_1.Side.RIGHT) {
                 if (turnIndex === 1) {
-                    await (0, judge_trigger_1.judgeTrigger)("0", true);
+                    await (0, judge_trigger_1.judgeTrigger)("0", { isMute: true });
                 }
                 else {
                     await (0, judge_trigger_1.judgeTrigger)("0");
@@ -441,7 +441,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
     }
     async startFinalJudgment(sessionId) {
         try {
-            await (0, judge_trigger_1.judgeTrigger)("0", true);
+            await (0, judge_trigger_1.judgeTrigger)("0", { isMute: true });
             await this.sessionRepository.updateState(sessionId, client_1.SessionState.JUDGING);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.JUDGING);
             const judgingMessage = "全ての弁論が終了したのじゃ。魔法の天秤で最終的な判定を行うぞい。";
@@ -460,9 +460,10 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             });
             await (0, timer_1.timer)(2000);
             await (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.loading);
+            await (0, judge_trigger_1.judgeTrigger)("0", { isMute: true, state: judge_trigger_1.State.loading });
             this.wsConnection.broadcastToSession(sessionId, "loading:start", {
                 sessionId,
-                message: "魔法の天秤が真実を測定中じゃ...",
+                message: "...",
             });
             const verdict = await judgmentPromise;
             await this.verdictRepository.upsertVerdict(verdict);
