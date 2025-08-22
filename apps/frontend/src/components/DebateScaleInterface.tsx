@@ -358,10 +358,16 @@ export default function DebateScaleInterface() {
       setDebateTheme(lastTranscript.text);
       setThemeRecordingPhase("waiting");
       setAiSubtitle(
-        `テーマ「${lastTranscript.text}」を受け取ったのじゃ。スペースキーを押して儀式を開始するのじゃ。`
+        `テーマ「${lastTranscript.text}」を受け取ったのじゃ。儀式を開始するのじゃ。`
       );
+
+      // 2秒後に自動的にセッション開始
+      setTimeout(() => {
+        console.log("[自動開始] セッションを開始します");
+        createSession(lastTranscript.text);
+      }, 2000);
     }
-  }, [lastTranscript, themeRecordingPhase]);
+  }, [lastTranscript, themeRecordingPhase, createSession]);
 
   // スペースキーでテーマ録音を開始（10秒間自動録音）
   useEffect(() => {
@@ -440,14 +446,14 @@ export default function DebateScaleInterface() {
         console.log("[DEBUG] stopRecording() called after countdown");
 
         // 5秒後に音声認識結果を待つ（実際はWebSocketからの結果を待つ）
-        setTimeout(() => {
-          // 状態を直接チェックせず、常にタイムアウト処理を実行
-          console.log("[テーマ録音] タイムアウトチェック実行");
-          setAiSubtitle(
-            "音声認識に失敗したのじゃ。もう一度スペースキーで試してくれい。"
-          );
-          setThemeRecordingPhase("waiting");
-        }, 5000);
+        // setTimeout(() => {
+        //   // 状態を直接チェックせず、常にタイムアウト処理を実行
+        //   console.log("[テーマ録音] タイムアウトチェック実行");
+        //   setAiSubtitle(
+        //     "音声認識に失敗したのじゃ。もう一度スペースキーで試してくれい。"
+        //   );
+        //   setThemeRecordingPhase("waiting");
+        // }, 5000);
       }
     }, 1000);
   };
@@ -894,9 +900,7 @@ export default function DebateScaleInterface() {
                     <div className="space-y-6">
                       <div className="text-8xl mb-4 animate-bounce">⌨️</div>
                       <p className="text-2xl font-bold text-yellow-300 mb-2">
-                        {debateTheme
-                          ? "スペースキーで開始"
-                          : "スペースキーでテーマ入力"}
+                        {debateTheme ? "" : "スペースキーでテーマ入力"}
                       </p>
                       <p className="text-purple-200 text-sm italic">
                         {debateTheme
