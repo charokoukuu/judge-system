@@ -1,10 +1,12 @@
 import asyncio
 import os
+import time
 from bleak import BleakClient, BleakScanner
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
 from typing import Optional, Dict
+import logging
 
 # デバイス1の設定
 cybergear_NAME = "M5judge_Cybergear_Ctrl"
@@ -28,63 +30,225 @@ class BLEConnectionManager:
     def __init__(self):
         self.connections: Dict[str, BleakClient] = {}
         self.connection_lock = asyncio.Lock()
+        self.reconnect_config = {
+            "max_retries": 5,
+            "base_delay": 1.0,  # 基本待機時間（秒）
+            "max_delay": 30.0,  # 最大待機時間（秒）
+            "health_check_interval": 10.0  # ヘルスチェック間隔（秒）
+        }
+        self.device_configs = {
+            cybergear_NAME: {
+                "service_uuid": cybergear_SERVICE_UUID,
+                "characteristic_uuid": cybergear_CHARACTERISTIC_UUID
+            },
+            led_NAME: {
+                "service_uuid": led_SERVICE_UUID,
+                "characteristic_uuid": led_CHARACTERISTIC_UUID
+            },
+            dial_NAME: {
+                "service_uuid": dial_SERVICE_UUID,
+                "characteristic_uuid": dial_CHARACTERISTIC_UUID
+            }
+        }
+        self.reconnect_tasks = {}
+        self.health_check_task = None
         
     async def connect_device(self, device_name: str, service_uuid: str, characteristic_uuid: str):
         """デバイスに接続"""
         try:
-            print(f"Scanning for {device_name}...")
+            logging.info(f"Scanning for {device_name}...")
             device = await BleakScanner.find_device_by_filter(
                 lambda d, ad: d.name and device_name in d.name
             )
 
             if not device:
-                print(f"Device '{device_name}' not found.")
+                logging.warning(f"Device '{device_name}' not found.")
                 return False
 
             client = BleakClient(device)
             await client.connect()
-            print(f"Connected to {device_name}")
+            logging.info(f"Connected to {device_name}")
             
             # 接続を保存
             self.connections[device_name] = client
             return True
             
         except Exception as e:
-            print(f"Failed to connect to {device_name}: {str(e)}")
+            logging.error(f"Failed to connect to {device_name}: {str(e)}")
             return False
     
+    async def connect_device_with_retry(self, device_name: str, service_uuid: str, characteristic_uuid: str, max_retries: int = None):
+        """リトライ機能付きデバイス接続"""
+        if max_retries is None:
+            max_retries = self.reconnect_config["max_retries"]
+            
+        for attempt in range(max_retries):
+            try:
+                success = await self.connect_device(device_name, service_uuid, characteristic_uuid)
+                if success:
+                    logging.info(f"Successfully connected to {device_name} on attempt {attempt + 1}")
+                    return True
+                    
+            except Exception as e:
+                logging.error(f"Connection attempt {attempt + 1} failed for {device_name}: {str(e)}")
+            
+            if attempt < max_retries - 1:
+                # 指数バックオフによる待機時間計算
+                delay = min(
+                    self.reconnect_config["base_delay"] * (2 ** attempt),
+                    self.reconnect_config["max_delay"]
+                )
+                logging.info(f"Waiting {delay:.1f} seconds before retry for {device_name}")
+                await asyncio.sleep(delay)
+        
+        logging.error(f"Failed to connect to {device_name} after {max_retries} attempts")
+        return False
+    
+    async def check_connection_health(self, device_name: str):
+        """デバイス接続の健全性をチェック"""
+        client = self.connections.get(device_name)
+        if not client:
+            return False
+            
+        try:
+            # 接続状態をチェック
+            return client.is_connected
+        except Exception as e:
+            logging.error(f"Health check failed for {device_name}: {str(e)}")
+            return False
+    
+    async def start_auto_reconnect(self, device_name: str):
+        """特定デバイスの自動再接続を開始"""
+        if device_name in self.reconnect_tasks:
+            # 既存のタスクをキャンセル
+            self.reconnect_tasks[device_name].cancel()
+        
+        self.reconnect_tasks[device_name] = asyncio.create_task(
+            self._auto_reconnect_loop(device_name)
+        )
+    
+    async def _auto_reconnect_loop(self, device_name: str):
+        """自動再接続ループ"""
+        try:
+            while True:
+                await asyncio.sleep(self.reconnect_config["health_check_interval"])
+                
+                # 接続状態をチェック
+                is_healthy = await self.check_connection_health(device_name)
+                
+                if not is_healthy:
+                    logging.warning(f"Connection lost for {device_name}, attempting reconnection...")
+                    
+                    # 古い接続をクリーンアップ
+                    if device_name in self.connections:
+                        try:
+                            await self.connections[device_name].disconnect()
+                        except:
+                            pass
+                        del self.connections[device_name]
+                    
+                    # 再接続を試行
+                    config = self.device_configs[device_name]
+                    success = await self.connect_device_with_retry(
+                        device_name,
+                        config["service_uuid"],
+                        config["characteristic_uuid"]
+                    )
+                    
+                    if success:
+                        logging.info(f"Successfully reconnected to {device_name}")
+                    else:
+                        logging.error(f"Failed to reconnect to {device_name}")
+                        
+        except asyncio.CancelledError:
+            logging.info(f"Auto-reconnect loop cancelled for {device_name}")
+        except Exception as e:
+            logging.error(f"Auto-reconnect loop error for {device_name}: {str(e)}")
+    
+    async def start_health_monitoring(self):
+        """全デバイスのヘルスモニタリングを開始"""
+        if self.health_check_task:
+            self.health_check_task.cancel()
+            
+        self.health_check_task = asyncio.create_task(self._health_monitoring_loop())
+    
+    async def _health_monitoring_loop(self):
+        """ヘルスモニタリングループ"""
+        try:
+            while True:
+                await asyncio.sleep(self.reconnect_config["health_check_interval"])
+                
+                for device_name in self.device_configs.keys():
+                    is_healthy = await self.check_connection_health(device_name)
+                    
+                    if not is_healthy and device_name not in self.reconnect_tasks:
+                        logging.warning(f"Starting auto-reconnect for disconnected device: {device_name}")
+                        await self.start_auto_reconnect(device_name)
+                        
+        except asyncio.CancelledError:
+            logging.info("Health monitoring loop cancelled")
+        except Exception as e:
+            logging.error(f"Health monitoring loop error: {str(e)}")
+    
     async def send_message(self, device_name: str, characteristic_uuid: str, message: str):
-        """接続済みデバイスにメッセージを送信"""
+        """接続済みデバイスにメッセージを送信（自動再接続付き）"""
         async with self.connection_lock:
             client = self.connections.get(device_name)
             if not client or not client.is_connected:
-                print(f"Device {device_name} is not connected")
-                return False
+                logging.warning(f"Device {device_name} is not connected, attempting reconnection...")
+                
+                # 自動再接続を試行
+                config = self.device_configs.get(device_name)
+                if config:
+                    success = await self.connect_device_with_retry(
+                        device_name,
+                        config["service_uuid"],
+                        config["characteristic_uuid"],
+                        max_retries=3  # メッセージ送信時は短時間で再試行
+                    )
+                    if not success:
+                        return False
+                    client = self.connections.get(device_name)
+                else:
+                    return False
                 
             try:
                 await client.write_gatt_char(characteristic_uuid, message.encode("utf-8"))
-                print(f"Sent message to {device_name}: {message}")
+                logging.info(f"Sent message to {device_name}: {message}")
                 return True
             except Exception as e:
-                print(f"Error sending message to {device_name}: {str(e)}")
-                # 接続が切れた場合は削除
+                logging.error(f"Error sending message to {device_name}: {str(e)}")
+                # 接続が切れた場合は削除して自動再接続を開始
                 if device_name in self.connections:
                     try:
                         await self.connections[device_name].disconnect()
                     except:
                         pass
                     del self.connections[device_name]
+                
+                # 自動再接続を開始
+                await self.start_auto_reconnect(device_name)
                 return False
     
     async def disconnect_all(self):
         """全デバイスとの接続を切断"""
+        # ヘルスモニタリングを停止
+        if self.health_check_task:
+            self.health_check_task.cancel()
+            
+        # 自動再接続タスクを停止
+        for task in self.reconnect_tasks.values():
+            task.cancel()
+        self.reconnect_tasks.clear()
+        
+        # 全接続を切断
         for device_name, client in self.connections.items():
             try:
                 if client.is_connected:
                     await client.disconnect()
-                    print(f"Disconnected from {device_name}")
+                    logging.info(f"Disconnected from {device_name}")
             except Exception as e:
-                print(f"Error disconnecting from {device_name}: {str(e)}")
+                logging.error(f"Error disconnecting from {device_name}: {str(e)}")
         self.connections.clear()
     
     def get_connection_status(self):
@@ -93,12 +257,41 @@ class BLEConnectionManager:
         for device_name, client in self.connections.items():
             status[device_name] = client.is_connected if client else False
         return status
+    
+    async def force_reconnect_all(self):
+        """全デバイスの強制再接続"""
+        logging.info("Starting force reconnection for all devices...")
+        
+        # 既存接続をクリア
+        await self.disconnect_all()
+        
+        # 全デバイスに再接続
+        results = {}
+        for device_name, config in self.device_configs.items():
+            success = await self.connect_device_with_retry(
+                device_name,
+                config["service_uuid"],
+                config["characteristic_uuid"]
+            )
+            results[device_name] = success
+            
+            if success:
+                # 自動再接続を開始
+                await self.start_auto_reconnect(device_name)
+        
+        # ヘルスモニタリングを再開
+        await self.start_health_monitoring()
+        
+        return results
 
 # グローバルコネクションマネージャー
 connection_manager = BLEConnectionManager()
 
 # FastAPIアプリケーションの初期化
 app = FastAPI()
+
+# ログ設定
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # リクエストボディのモデル
 class MessageRequest(BaseModel):
@@ -110,49 +303,56 @@ async def startup_event():
     is_docker = os.path.exists('/.dockerenv')
     
     if is_docker:
-        print("Docker environment detected. Skipping BLE connections.")
+        logging.info("Docker environment detected. Skipping BLE connections.")
         return
     
-    print("Initializing BLE connections...")
+    logging.info("Initializing BLE connections...")
     
-    # 全デバイスに接続を試行
-    cybergear_connected = await connection_manager.connect_device(
+    # 全デバイスに接続を試行（リトライ機能付き）
+    cybergear_connected = await connection_manager.connect_device_with_retry(
         cybergear_NAME, cybergear_SERVICE_UUID, cybergear_CHARACTERISTIC_UUID
     )
     
-    led_connected = await connection_manager.connect_device(
+    led_connected = await connection_manager.connect_device_with_retry(
         led_NAME, led_SERVICE_UUID, led_CHARACTERISTIC_UUID
     )
     
-    dial_connected = await connection_manager.connect_device(
+    dial_connected = await connection_manager.connect_device_with_retry(
         dial_NAME, dial_SERVICE_UUID, dial_CHARACTERISTIC_UUID
     )
     
     if cybergear_connected:
-        print(f"✓ {cybergear_NAME} connected successfully")
+        logging.info(f"✓ {cybergear_NAME} connected successfully")
+        await connection_manager.start_auto_reconnect(cybergear_NAME)
     else:
-        print(f"✗ Failed to connect to {cybergear_NAME}")
+        logging.warning(f"✗ Failed to connect to {cybergear_NAME}")
     
     if led_connected:
-        print(f"✓ {led_NAME} connected successfully")
+        logging.info(f"✓ {led_NAME} connected successfully")
+        await connection_manager.start_auto_reconnect(led_NAME)
     else:
-        print(f"✗ Failed to connect to {led_NAME}")
+        logging.warning(f"✗ Failed to connect to {led_NAME}")
     
     if dial_connected:
-        print(f"✓ {dial_NAME} connected successfully")
+        logging.info(f"✓ {dial_NAME} connected successfully")
+        await connection_manager.start_auto_reconnect(dial_NAME)
     else:
-        print(f"✗ Failed to connect to {dial_NAME}")
+        logging.warning(f"✗ Failed to connect to {dial_NAME}")
     
     connected_count = sum([cybergear_connected, led_connected, dial_connected])
     if connected_count == 0:
-        print("Warning: No devices connected")
+        logging.warning("Warning: No devices connected")
     else:
-        print(f"BLE initialization complete: {connected_count}/3 devices connected")
+        logging.info(f"BLE initialization complete: {connected_count}/3 devices connected")
+    
+    # ヘルスモニタリングを開始
+    await connection_manager.start_health_monitoring()
+    logging.info("Health monitoring started for all devices")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """アプリケーション終了時に全接続を切断"""
-    print("Shutting down BLE connections...")
+    logging.info("Shutting down BLE connections...")
     await connection_manager.disconnect_all()
 
 async def send_message_to_all_devices_persistent(message: str):
@@ -337,7 +537,12 @@ async def health_check():
             "send_cybergear": "/send/cybergear", 
             "send_led": "/send/led",
             "send_dial": "/send/dial",
-            "reconnect": "/reconnect"
+            "reconnect": "/reconnect",
+            "status": "/status",
+            "health_monitoring": {
+                "start": "/health-monitoring/start",
+                "stop": "/health-monitoring/stop"
+            }
         }
     }
 
@@ -351,53 +556,93 @@ async def reconnect_devices():
         return {"status": "success", "message": "Reconnection skipped (Docker mock mode)"}
     
     try:
-        # 既存接続を切断
-        await connection_manager.disconnect_all()
-        
-        # 再接続を試行
-        cybergear_connected = await connection_manager.connect_device(
-            cybergear_NAME, cybergear_SERVICE_UUID, cybergear_CHARACTERISTIC_UUID
-        )
-        
-        led_connected = await connection_manager.connect_device(
-            led_NAME, led_SERVICE_UUID, led_CHARACTERISTIC_UUID
-        )
-        
-        dial_connected = await connection_manager.connect_device(
-            dial_NAME, dial_SERVICE_UUID, dial_CHARACTERISTIC_UUID
-        )
-        
-        results = {
-            "cybergear": cybergear_connected,
-            "led": led_connected,
-            "dial": dial_connected
-        }
+        # 強制再接続を実行
+        results = await connection_manager.force_reconnect_all()
         
         success_count = sum(results.values())
         
         return {
             "status": "success" if success_count > 0 else "partial_failure",
             "message": f"Reconnection complete: {success_count}/3 devices connected",
-            "connections": results
+            "connections": results,
+            "auto_reconnect_enabled": True,
+            "health_monitoring_enabled": True
         }
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Reconnection failed: {str(e)}")
 
+# 接続状態エンドポイント
+@app.get("/status")
+async def get_connection_status():
+    """現在の接続状態とヘルスチェック情報を取得"""
+    connection_status = connection_manager.get_connection_status()
+    
+    return {
+        "connections": connection_status,
+        "health_monitoring": {
+            "enabled": connection_manager.health_check_task is not None and not connection_manager.health_check_task.done(),
+            "check_interval": connection_manager.reconnect_config["health_check_interval"]
+        },
+        "auto_reconnect": {
+            "active_tasks": list(connection_manager.reconnect_tasks.keys()),
+            "config": connection_manager.reconnect_config
+        },
+        "timestamp": time.time()
+    }
+
+# ヘルスモニタリング制御エンドポイント
+@app.post("/health-monitoring/start")
+async def start_health_monitoring():
+    """ヘルスモニタリングを開始"""
+    is_docker = os.path.exists('/.dockerenv')
+    
+    if is_docker:
+        return {"status": "success", "message": "Health monitoring start skipped (Docker mock mode)"}
+    
+    try:
+        await connection_manager.start_health_monitoring()
+        return {"status": "success", "message": "Health monitoring started"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start health monitoring: {str(e)}")
+
+@app.post("/health-monitoring/stop")
+async def stop_health_monitoring():
+    """ヘルスモニタリングを停止"""
+    is_docker = os.path.exists('/.dockerenv')
+    
+    if is_docker:
+        return {"status": "success", "message": "Health monitoring stop skipped (Docker mock mode)"}
+    
+    try:
+        if connection_manager.health_check_task:
+            connection_manager.health_check_task.cancel()
+        return {"status": "success", "message": "Health monitoring stopped"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to stop health monitoring: {str(e)}")
+
 if __name__ == "__main__":
-    print("Starting BLE HTTP Server with Persistent Connections...")
-    print("Server will be available at: http://localhost:9000")
-    print(f"Configured devices:")
-    print(f"  Device 1: {cybergear_NAME}")
-    print(f"  Device 2: {led_NAME}")
-    print(f"  Device 3: {dial_NAME}")
-    print("Available endpoints:")
-    print("  POST /send - Send to all devices (persistent connection)")
-    print("  POST /send/cybergear - Send to cybergear only")
-    print("  POST /send/led - Send to led only")
-    print("  POST /send/dial - Send to dial only")
-    print("  POST /reconnect - Reconnect to all devices")
-    print("  GET / - Health check and connection status")
-    print("Example: curl -X POST http://localhost:9000/send -H 'Content-Type: application/json' -d '{\"message\":\"0\"}'")
-    print("\nNote: All 3 devices will be connected at startup and connections maintained for faster sending.")
+    logging.info("Starting BLE HTTP Server with Auto-Reconnection...")
+    logging.info("Server will be available at: http://localhost:9000")
+    logging.info(f"Configured devices:")
+    logging.info(f"  Device 1: {cybergear_NAME}")
+    logging.info(f"  Device 2: {led_NAME}")
+    logging.info(f"  Device 3: {dial_NAME}")
+    logging.info("Available endpoints:")
+    logging.info("  POST /send - Send to all devices (persistent connection)")
+    logging.info("  POST /send/cybergear - Send to cybergear only")
+    logging.info("  POST /send/led - Send to led only")
+    logging.info("  POST /send/dial - Send to dial only")
+    logging.info("  POST /reconnect - Reconnect to all devices")
+    logging.info("  GET /status - Connection status and health info")
+    logging.info("  POST /health-monitoring/start - Start health monitoring")
+    logging.info("  POST /health-monitoring/stop - Stop health monitoring")
+    logging.info("  GET / - Health check and connection status")
+    logging.info("Example: curl -X POST http://localhost:9000/send -H 'Content-Type: application/json' -d '{\"message\":\"0\"}'")
+    logging.info("\nAuto-reconnection features:")
+    logging.info("  - Automatic reconnection on connection loss")
+    logging.info("  - Exponential backoff retry strategy")
+    logging.info("  - Continuous health monitoring")
+    logging.info("  - Background reconnection tasks")
+    logging.info(f"  - Health check interval: {connection_manager.reconnect_config['health_check_interval']} seconds")
     uvicorn.run(app, host="0.0.0.0", port=9000)
