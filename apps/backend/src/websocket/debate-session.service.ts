@@ -186,6 +186,10 @@ export class DebateSessionService {
           sessionId,
           theme: session.theme,
           message: startMessage,
+          positions: {
+            right: result.right,
+            left: result.left,
+          },
         });
       });
 

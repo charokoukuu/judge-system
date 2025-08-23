@@ -119,6 +119,10 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                     sessionId,
                     theme: session.theme,
                     message: startMessage,
+                    positions: {
+                        right: result.right,
+                        left: result.left,
+                    },
                 });
             });
             const beaverRightMessage = `それぞれの皿にビーバーを配置するのじゃ。まずは右の者、太陽の皿にビーバーを乗せてくれ。`;

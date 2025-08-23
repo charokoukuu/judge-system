@@ -33,6 +33,95 @@ export default function DebateScaleInterface() {
   const [isSessionFinished, setIsSessionFinished] = useState(false); // セッション終了フラグ
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // テーマから立場を決定する関数
+  const getDebatePositions = (theme: string) => {
+    if (!theme) return { rightPosition: "", leftPosition: "" };
+
+    const lowerTheme = theme.toLowerCase();
+
+    // AI関連のテーマ
+    if (lowerTheme.includes("ai") || lowerTheme.includes("人工知能")) {
+      return {
+        rightPosition: "AI推進派",
+        leftPosition: "AI慎重派",
+      };
+    }
+
+    // 環境問題関連
+    if (
+      lowerTheme.includes("環境") ||
+      lowerTheme.includes("地球温暖化") ||
+      lowerTheme.includes("脱炭素")
+    ) {
+      return {
+        rightPosition: "環境優先派",
+        leftPosition: "経済優先派",
+      };
+    }
+
+    // 教育関連
+    if (
+      lowerTheme.includes("教育") ||
+      lowerTheme.includes("学校") ||
+      lowerTheme.includes("授業")
+    ) {
+      return {
+        rightPosition: "改革推進派",
+        leftPosition: "現状維持派",
+      };
+    }
+
+    // 働き方関連
+    if (
+      lowerTheme.includes("働き方") ||
+      lowerTheme.includes("リモートワーク") ||
+      lowerTheme.includes("残業")
+    ) {
+      return {
+        rightPosition: "改革派",
+        leftPosition: "従来派",
+      };
+    }
+
+    // 一般的な賛成/反対のテーマ
+    if (
+      theme.includes("すべきか") ||
+      theme.includes("べきか") ||
+      theme.includes("は良いか") ||
+      theme.includes("は正しいか") ||
+      theme.includes("賛成") ||
+      theme.includes("反対")
+    ) {
+      return {
+        rightPosition: "賛成派",
+        leftPosition: "反対派",
+      };
+    }
+
+    // 「AとBどちらが良いか」のようなテーマの場合
+    if (
+      theme.includes("どちら") ||
+      theme.includes("VS") ||
+      theme.includes("vs") ||
+      theme.includes("対")
+    ) {
+      // テーマを分析してより具体的に
+      const parts = theme.split(/どちら|VS|vs|対/);
+      if (parts.length >= 2) {
+        return {
+          rightPosition: parts[0].trim() + "派",
+          leftPosition: parts[1].trim() + "派",
+        };
+      }
+    }
+
+    // デフォルト
+    return {
+      rightPosition: "太陽側の立場",
+      leftPosition: "月側の立場",
+    };
+  };
+
   const {
     isConnected,
     session,
@@ -915,6 +1004,78 @@ export default function DebateScaleInterface() {
           ) : (
             /* ディベート中画面 */
             <div className="w-full max-w-6xl">
+              {/* 立場表示エリア */}
+              {session?.theme && (
+                <div className="mb-8 relative z-10">
+                  {/* テーマ表示 */}
+                  <div className="text-center mb-6">
+                    <div className="inline-block bg-gradient-to-r from-purple-900/80 to-indigo-900/80 backdrop-blur-sm rounded-2xl border-2 border-yellow-400/50 px-6 py-4 shadow-xl shadow-purple-500/30">
+                      <div className="text-purple-200 text-sm mb-2">
+                        論争のテーマ
+                      </div>
+                      <div className="text-white text-lg font-semibold">
+                        "{session.theme}"
+                      </div>
+                      {session.currentTurn > 0 && (
+                        <div className="text-yellow-300 text-xs mt-2">
+                          第{session.currentTurn}ターン進行中
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 立場表示 */}
+                  <div className="flex justify-between items-center max-w-4xl mx-auto">
+                    {/* 月側（左側）の立場 */}
+                    <div className="flex-1 text-center">
+                      <div className="bg-gradient-to-r from-indigo-900/60 to-purple-900/60 backdrop-blur-sm rounded-xl border-2 border-indigo-400/50 p-4 shadow-lg shadow-indigo-500/30">
+                        <div className="flex items-center justify-center gap-2 mb-2">
+                          <span className="text-2xl">🌙</span>
+                          <span className="text-indigo-200 font-bold">
+                            月側
+                          </span>
+                        </div>
+                        <div className="text-white text-sm font-medium">
+                          {session.positions?.left ||
+                            getDebatePositions(session.theme).leftPosition}
+                        </div>
+                        {session?.state?.includes("LEFT") && (
+                          <div className="mt-2 text-indigo-300 text-xs animate-pulse">
+                            ✨ 発言中 ✨
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 中央の天秤アイコン */}
+                    <div className="px-8">
+                      <div className="text-4xl animate-pulse">⚖️</div>
+                    </div>
+
+                    {/* 太陽側（右側）の立場 */}
+                    <div className="flex-1 text-center">
+                      <div className="bg-gradient-to-r from-orange-900/60 to-yellow-900/60 backdrop-blur-sm rounded-xl border-2 border-yellow-400/50 p-4 shadow-lg shadow-yellow-500/30">
+                        <div className="flex items-center justify-center gap-2 mb-2">
+                          <span className="text-2xl">☀️</span>
+                          <span className="text-yellow-200 font-bold">
+                            太陽側
+                          </span>
+                        </div>
+                        <div className="text-white text-sm font-medium">
+                          {session.positions?.right ||
+                            getDebatePositions(session.theme).rightPosition}
+                        </div>
+                        {session?.state?.includes("RIGHT") && (
+                          <div className="mt-2 text-yellow-300 text-xs animate-pulse">
+                            ✨ 発言中 ✨
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* 魔法の天秤デバイス表示 */}
               <div className="relative mb-12">
                 {/* 天秤周囲の魔法エフェクト */}

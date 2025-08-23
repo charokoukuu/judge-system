@@ -24,6 +24,10 @@ export interface DebateSession {
   participantCount: number;
   role?: "moderator" | "participant";
   side?: "RIGHT" | "LEFT";
+  positions?: {
+    right: string;
+    left: string;
+  };
 }
 
 export interface Message {
@@ -337,7 +341,16 @@ export const useDebateWebSocket = () => {
     // セッション開始
     socket.on("session:started", (data: any) => {
       console.log("Session started:", data);
+      console.log("Received positions:", data.positions);
       addMessage(data.message, "moderator");
+
+      // 立場情報を更新
+      if (data.positions) {
+        console.log("Updating session with positions:", data.positions);
+        setSession((prev) =>
+          prev ? { ...prev, positions: data.positions } : null
+        );
+      }
     });
 
     // ターン開始
