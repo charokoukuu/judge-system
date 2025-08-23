@@ -130,9 +130,9 @@ export class DebateSessionService {
       // セッション状態をREADYに更新
       // DEBUG: IDLEに戻す
       // this.startTurn(sessionId, 2, Side.LEFT);
-      // this.wrapUpTurn(sessionId, 3);
+      this.wrapUpTurn(sessionId, 3);
 
-      // return;
+      return;
       await this.sessionRepository.updateState(sessionId, SessionState.READY);
       this.wsConnection.updateSessionState(sessionId, SessionState.READY);
       const systemPrompt = `
@@ -569,7 +569,7 @@ export class DebateSessionService {
       const evaluation = await this.evaluateTurn(
         sessionId,
         turnIndex,
-        utterances
+        exampleUtterance(sessionId)
       );
 
       // 評価結果を保存
@@ -961,7 +961,7 @@ ${leftText}
       }
 
       // DEBUG: 後で消して定数にする
-      // allUtterances = exampleUtterance(sessionId);
+      allUtterances = exampleUtterance(sessionId);
       // 右と左の発話を分類・整理
       const rightUtterances = allUtterances.filter(
         (u) => u.side === Side.RIGHT

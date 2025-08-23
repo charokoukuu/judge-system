@@ -454,7 +454,7 @@ export default function DebateScaleInterface() {
       setTimeout(() => {
         console.log("[自動開始] セッションを開始します");
         createSession(lastTranscript.text);
-      }, 2000);
+      }, 10);
     }
   }, [lastTranscript, themeRecordingPhase, createSession]);
 
@@ -508,7 +508,7 @@ export default function DebateScaleInterface() {
   const startThemeRecording = () => {
     console.log("[テーマ録音] 10秒間の録音開始");
     setThemeRecordingPhase("recording");
-    setThemeRecordingCountdown(10);
+    setThemeRecordingCountdown(1);
     setAiSubtitle("10秒間でテーマを話してくれい。");
 
     // 録音開始
@@ -517,7 +517,7 @@ export default function DebateScaleInterface() {
     console.log("[DEBUG] startRecording() called");
 
     // カウントダウン開始
-    let remainingTime = 10;
+    let remainingTime = 1;
     const countdownInterval = setInterval(() => {
       remainingTime -= 1;
       console.log("[DEBUG] Countdown:", remainingTime);

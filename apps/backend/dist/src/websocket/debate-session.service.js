@@ -18,6 +18,7 @@ const client_1 = require("@prisma/client");
 const openai_service_1 = require("../openai/openai.service");
 const stylebart_service_1 = require("../stylebart/stylebart.service");
 const timer_1 = require("../util/timer");
+const exampleMessage_1 = require("../util/exampleMessage");
 const judge_trigger_1 = require("../util/judge-trigger");
 let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
     isDuplicateMessage(sessionId, text, windowMs = 3000) {
@@ -78,6 +79,8 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             if (session.state !== client_1.SessionState.IDLE) {
                 throw new Error(`Session ${sessionId} is not in IDLE state`);
             }
+            this.wrapUpTurn(sessionId, 3);
+            return;
             await this.sessionRepository.updateState(sessionId, client_1.SessionState.READY);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.READY);
             const systemPrompt = `
@@ -366,7 +369,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 }, 2000);
                 return;
             }
-            const evaluation = await this.evaluateTurn(sessionId, turnIndex, utterances);
+            const evaluation = await this.evaluateTurn(sessionId, turnIndex, (0, exampleMessage_1.exampleUtterance)(sessionId));
             await this.turnResultRepository.upsertTurnResult({
                 sessionId,
                 turnIndex,
@@ -620,6 +623,7 @@ ${leftText}
                 const utterances = await this.utteranceRepository.findBySessionAndTurn(sessionId, turn);
                 allUtterances.push(...utterances);
             }
+            allUtterances = (0, exampleMessage_1.exampleUtterance)(sessionId);
             const rightUtterances = allUtterances.filter((u) => u.side === client_1.Side.RIGHT);
             const leftUtterances = allUtterances.filter((u) => u.side === client_1.Side.LEFT);
             const rightSummary = rightUtterances
