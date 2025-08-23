@@ -508,8 +508,8 @@ export default function DebateScaleInterface() {
   const startThemeRecording = () => {
     console.log("[テーマ録音] 10秒間の録音開始");
     setThemeRecordingPhase("recording");
-    setThemeRecordingCountdown(5);
-    setAiSubtitle("5秒間でテーマを話してくれい。");
+    setThemeRecordingCountdown(10);
+    setAiSubtitle("10秒間でテーマを話してくれい。");
 
     // 録音開始
     console.log("[DEBUG] About to call startRecording()");
@@ -517,7 +517,7 @@ export default function DebateScaleInterface() {
     console.log("[DEBUG] startRecording() called");
 
     // カウントダウン開始
-    let remainingTime = 5;
+    let remainingTime = 10;
     const countdownInterval = setInterval(() => {
       remainingTime -= 1;
       console.log("[DEBUG] Countdown:", remainingTime);
@@ -1008,7 +1008,7 @@ export default function DebateScaleInterface() {
               {session?.theme && (
                 <div className="mb-8 relative z-10">
                   {/* テーマ表示 */}
-                  <div className="text-center mb-6">
+                  {/* <div className="text-center mb-6">
                     <div className="inline-block bg-gradient-to-r from-purple-900/80 to-indigo-900/80 backdrop-blur-sm rounded-2xl border-2 border-yellow-400/50 px-6 py-4 shadow-xl shadow-purple-500/30">
                       <div className="text-purple-200 text-sm mb-2">
                         論争のテーマ
@@ -1022,7 +1022,7 @@ export default function DebateScaleInterface() {
                         </div>
                       )}
                     </div>
-                  </div>
+                  </div> */}
 
                   {/* 立場表示 */}
                   <div className="flex justify-between items-center max-w-4xl mx-auto">
