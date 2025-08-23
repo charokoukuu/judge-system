@@ -130,7 +130,7 @@ export class DebateSessionService {
       // セッション状態をREADYに更新
       // DEBUG: IDLEに戻す
       // this.startTurn(sessionId, 2, Side.LEFT);
-      // this.wrapUpTurn(sessionId, 2);
+      // this.wrapUpTurn(sessionId, 3);
 
       // return;
       await this.sessionRepository.updateState(sessionId, SessionState.READY);
@@ -382,7 +382,7 @@ export class DebateSessionService {
           turnIndex,
           side,
           // DEBUG: 15秒に戻す
-          duration: 2,
+          duration: 15,
         }
       );
 
@@ -411,7 +411,7 @@ export class DebateSessionService {
     const timeoutId = setTimeout(() => {
       this.endTurn(sessionId, turnIndex, side);
       // DEBUG: 15秒に戻す
-    }, 2000); // 15秒
+    }, 15000);
 
     const timer: TurnTimer = {
       sessionId,
@@ -565,7 +565,7 @@ export class DebateSessionService {
       const evaluation = await this.evaluateTurn(
         sessionId,
         turnIndex,
-        exampleUtterance(sessionId)
+        utterances
       );
 
       // 評価結果を保存
@@ -720,7 +720,7 @@ export class DebateSessionService {
       await judgeTrigger("0", { isMute: true, state: State.loading });
       this.wsConnection.broadcastToSession(sessionId, "loading:start", {
         sessionId,
-        message: "...",
+        message: "",
       });
       // 判定処理の完了を待機
       const verdict = await judgmentPromise;
@@ -957,7 +957,7 @@ ${leftText}
       }
 
       // DEBUG: 後で消して定数にする
-      allUtterances = exampleUtterance(sessionId);
+      // allUtterances = exampleUtterance(sessionId);
       // 右と左の発話を分類・整理
       const rightUtterances = allUtterances.filter(
         (u) => u.side === Side.RIGHT
