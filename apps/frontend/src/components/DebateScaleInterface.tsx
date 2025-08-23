@@ -508,8 +508,8 @@ export default function DebateScaleInterface() {
   const startThemeRecording = () => {
     console.log("[テーマ録音] 10秒間の録音開始");
     setThemeRecordingPhase("recording");
-    setThemeRecordingCountdown(10);
-    setAiSubtitle("10秒間でテーマを話してくれい。");
+    setThemeRecordingCountdown(5);
+    setAiSubtitle("5秒間でテーマを話してくれい。");
 
     // 録音開始
     console.log("[DEBUG] About to call startRecording()");
@@ -517,7 +517,7 @@ export default function DebateScaleInterface() {
     console.log("[DEBUG] startRecording() called");
 
     // カウントダウン開始
-    let remainingTime = 10;
+    let remainingTime = 5;
     const countdownInterval = setInterval(() => {
       remainingTime -= 1;
       console.log("[DEBUG] Countdown:", remainingTime);

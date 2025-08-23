@@ -171,89 +171,89 @@ export class DebateSessionService {
       );
 
       // 開始アナウンスを作成
-      const startMessage = `魔法の天秤で真実を測る時が来たのじゃ。議題は「${session.theme}」じゃ。3回の弁論で真理を探るのじゃ。太陽の皿は${result.right}、月の皿は${result.left}の立場を担うのじゃ。`;
+      // const startMessage = `議題は「${session.theme}」じゃ。太陽の皿は${result.right}、月の皿は${result.left}の立場を担うのじゃ。`;
 
-      // AIアナウンスを保存
-      await this.aiResponseRepository.create({
-        sessionId,
-        turnIndex: 0,
-        text: startMessage,
-      });
+      // // AIアナウンスを保存
+      // await this.aiResponseRepository.create({
+      //   sessionId,
+      //   turnIndex: 0,
+      //   text: startMessage,
+      // });
 
-      // TTSでアナウンス音声を生成・配信
-      await this.generateAndBroadcastAudioSync(sessionId, startMessage, () => {
-        this.wsConnection.broadcastToSession(sessionId, "session:started", {
-          sessionId,
-          theme: session.theme,
-          message: startMessage,
-          positions: {
-            right: result.right,
-            left: result.left,
-          },
-        });
-      });
+      // // TTSでアナウンス音声を生成・配信
+      // await this.generateAndBroadcastAudioSync(sessionId, startMessage, () => {
+      //   this.wsConnection.broadcastToSession(sessionId, "session:started", {
+      //     sessionId,
+      //     theme: session.theme,
+      //     message: startMessage,
+      //     positions: {
+      //       right: result.right,
+      //       left: result.left,
+      //     },
+      //   });
+      // });
 
-      // ビーバー配置の指示メッセージ（右側用）
-      const beaverRightMessage = `それぞれの皿にビーバーを配置するのじゃ。まずは右の者、太陽の皿にビーバーを乗せてくれ。`;
+      // // ビーバー配置の指示メッセージ（右側用）
+      // const beaverRightMessage = `それぞれの皿にビーバーを配置するのじゃ。まずは右の者、太陽の皿にビーバーを乗せてくれ。`;
 
-      await this.aiResponseRepository.create({
-        sessionId,
-        turnIndex: 0,
-        text: beaverRightMessage,
-      });
+      // await this.aiResponseRepository.create({
+      //   sessionId,
+      //   turnIndex: 0,
+      //   text: beaverRightMessage,
+      // });
 
-      setTimeout(() => {
-        ledTrigger(State.right);
-        judgeTrigger("35");
-      }, 3000);
-      await this.generateAndBroadcastAudioSync(
-        sessionId,
-        beaverRightMessage,
-        () => {
-          this.wsConnection.broadcastToSession(
-            sessionId,
-            "beaver:right_instruction",
-            {
-              sessionId,
-              message: beaverRightMessage,
-            }
-          );
-        }
-      );
-      await timer(4000);
-      ledTrigger(State.left);
-      await judgeTrigger("-35");
+      // setTimeout(() => {
+      //   ledTrigger(State.right);
+      //   judgeTrigger("35");
+      // }, 3000);
+      // await this.generateAndBroadcastAudioSync(
+      //   sessionId,
+      //   beaverRightMessage,
+      //   () => {
+      //     this.wsConnection.broadcastToSession(
+      //       sessionId,
+      //       "beaver:right_instruction",
+      //       {
+      //         sessionId,
+      //         message: beaverRightMessage,
+      //       }
+      //     );
+      //   }
+      // );
+      // await timer(4000);
+      // ledTrigger(State.left);
+      // await judgeTrigger("-35");
 
-      // ビーバー配置の指示メッセージ（左側用）
-      const beaverLeftMessage = `次に左の者、月の皿にビーバーを配置するのじゃ`;
+      // // ビーバー配置の指示メッセージ（左側用）
+      // const beaverLeftMessage = `次に左の者、月の皿にビーバーを配置するのじゃ`;
 
-      await this.aiResponseRepository.create({
-        sessionId,
-        turnIndex: 0,
-        text: beaverLeftMessage,
-      });
+      // await this.aiResponseRepository.create({
+      //   sessionId,
+      //   turnIndex: 0,
+      //   text: beaverLeftMessage,
+      // });
 
-      await this.generateAndBroadcastAudioSync(
-        sessionId,
-        beaverLeftMessage,
-        () => {
-          this.wsConnection.broadcastToSession(
-            sessionId,
-            "beaver:left_instruction",
-            {
-              sessionId,
-              message: beaverLeftMessage,
-            }
-          );
-        }
-      );
+      // await this.generateAndBroadcastAudioSync(
+      //   sessionId,
+      //   beaverLeftMessage,
+      //   () => {
+      //     this.wsConnection.broadcastToSession(
+      //       sessionId,
+      //       "beaver:left_instruction",
+      //       {
+      //         sessionId,
+      //         message: beaverLeftMessage,
+      //       }
+      //     );
+      //   }
+      // );
 
-      await timer(4000);
+      // await timer(4000);
 
-      await judgeTrigger("0");
-      await ledTrigger(State.idle);
+      // await judgeTrigger("0");
+      // await ledTrigger(State.idle);
       // 弁論開始メッセージ
-      const debateStartMessage = `それでは弁論を開始するのじゃ。まずは太陽の代弁者から、15秒で聞かせてくれい。`;
+      const debateStartMessage = `それでは弁論を開始するのじゃ。`;
 
       await this.aiResponseRepository.create({
         sessionId,
@@ -277,7 +277,7 @@ export class DebateSessionService {
       );
 
       // 音声再生完了後に第1ターンを開始
-      await this.startTurn(sessionId, 1, Side.RIGHT);
+      await this.startTurn(sessionId, 3, Side.RIGHT);
 
       this.logger.log(`Session ${sessionId} started`);
     } catch (error) {
@@ -322,7 +322,7 @@ export class DebateSessionService {
       }
 
       const sideText = side === Side.RIGHT ? "太陽の皿" : "月の皿";
-      const message = `${sideText}の方、どうぞ話してくれい。15秒でお聞かせくだされ。`;
+      const message = `${sideText}の方、お聞かせくだされ。`;
 
       // AIアナウンスを保存
       await this.aiResponseRepository.create({
@@ -337,18 +337,18 @@ export class DebateSessionService {
         } else {
           await judgeTrigger("0");
         }
-        await ledTrigger(State.idle);
-        const turnMessage =
-          turnIndex === 3
-            ? "最終弁論じゃ。これまでの議論をまとめて話してくれい。"
-            : `第${turnIndex}回目の弁論を始めるのじゃ。`;
-        await this.generateAndBroadcastAudioSync(sessionId, turnMessage, () => {
-          this.wsConnection.broadcastToSession(sessionId, "turn:started", {
-            sessionId,
-            turnIndex,
-            message: turnMessage,
-          });
-        });
+        // await ledTrigger(State.idle);
+        // const turnMessage =
+        //   turnIndex === 3
+        //     ? "最終弁論じゃ。これまでの議論をまとめて話してくれい。"
+        //     : `第${turnIndex}回目の弁論を始めるのじゃ。`;
+        // await this.generateAndBroadcastAudioSync(sessionId, turnMessage, () => {
+        //   this.wsConnection.broadcastToSession(sessionId, "turn:started", {
+        //     sessionId,
+        //     turnIndex,
+        //     message: turnMessage,
+        //   });
+        // });
       }
 
       // TTSでアナウンス、完了後にタイマー開始
@@ -386,7 +386,7 @@ export class DebateSessionService {
           turnIndex,
           side,
           // DEBUG: 15秒に戻す
-          duration: 15,
+          duration: 8,
         }
       );
 
@@ -415,7 +415,7 @@ export class DebateSessionService {
     const timeoutId = setTimeout(() => {
       this.endTurn(sessionId, turnIndex, side);
       // DEBUG: 15秒に戻す
-    }, 15000);
+    }, 8000);
 
     const timer: TurnTimer = {
       sessionId,
@@ -689,8 +689,7 @@ export class DebateSessionService {
       await this.sessionRepository.updateState(sessionId, SessionState.JUDGING);
       this.wsConnection.updateSessionState(sessionId, SessionState.JUDGING);
 
-      const judgingMessage =
-        "全ての弁論が終了したのじゃ。魔法の天秤で最終的な判定を行うぞい。";
+      const judgingMessage = "魔法の天秤で最終的な判定を行うぞい。";
 
       await this.aiResponseRepository.create({
         sessionId,
@@ -1310,8 +1309,8 @@ ${turnResults.join("\n")}
   async preloadCommonAudioMessages(): Promise<void> {
     const commonMessages = [
       "魔法の天秤が真実を測る時が来たのじゃ。",
-      "第1回目の弁論を始めるのじゃ。太陽の皿の方、15秒で話してくれい。",
-      "第1回目の弁論を始めるのじゃ。月の皿の方、15秒で話してくれい。",
+      "第1回目の弁論を始めるのじゃ。太陽の皿の方、8秒で話してくれい。",
+      "第1回目の弁論を始めるのじゃ。月の皿の方、8秒で話してくれい。",
       "時間になったのじゃ。ご苦労であった。",
       "この回の弁論は終了じゃ。",
       "魔法の天秤で評価中じゃ。少々待つのじゃ。",
