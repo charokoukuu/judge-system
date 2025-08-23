@@ -253,7 +253,7 @@ export class DebateSessionService {
       await judgeTrigger("0");
       await ledTrigger(State.idle);
       // 弁論開始メッセージ
-      const debateStartMessage = `それでは弁論を開始するのじゃ。まずは太陽の代弁者から、15秒で聞かせてくれい。`;
+      const debateStartMessage = `それでは弁論を開始するのじゃ`;
 
       await this.aiResponseRepository.create({
         sessionId,
@@ -322,7 +322,7 @@ export class DebateSessionService {
       }
 
       const sideText = side === Side.RIGHT ? "太陽の皿" : "月の皿";
-      const message = `${sideText}の方、どうぞ話してくれい。15秒でお聞かせくだされ。`;
+      const message = `${sideText}の方、8秒でお聞かせくだされ。`;
 
       // AIアナウンスを保存
       await this.aiResponseRepository.create({
@@ -342,13 +342,19 @@ export class DebateSessionService {
           turnIndex === 3
             ? "最終弁論じゃ。これまでの議論をまとめて話してくれい。"
             : `第${turnIndex}回目の弁論を始めるのじゃ。`;
-        await this.generateAndBroadcastAudioSync(sessionId, turnMessage, () => {
-          this.wsConnection.broadcastToSession(sessionId, "turn:started", {
+        if (turnIndex !== 1) {
+          await this.generateAndBroadcastAudioSync(
             sessionId,
-            turnIndex,
-            message: turnMessage,
-          });
-        });
+            turnMessage,
+            () => {
+              this.wsConnection.broadcastToSession(sessionId, "turn:started", {
+                sessionId,
+                turnIndex,
+                message: turnMessage,
+              });
+            }
+          );
+        }
       }
 
       // TTSでアナウンス、完了後にタイマー開始
@@ -385,8 +391,8 @@ export class DebateSessionService {
           sessionId,
           turnIndex,
           side,
-          // DEBUG: 15秒に戻す
-          duration: 15,
+          // DEBUG: 8秒に戻す
+          duration: 8,
         }
       );
 
@@ -414,8 +420,8 @@ export class DebateSessionService {
 
     const timeoutId = setTimeout(() => {
       this.endTurn(sessionId, turnIndex, side);
-      // DEBUG: 15秒に戻す
-    }, 15000);
+      // DEBUG: 8秒に戻す
+    }, 8000);
 
     const timer: TurnTimer = {
       sessionId,
@@ -689,8 +695,7 @@ export class DebateSessionService {
       await this.sessionRepository.updateState(sessionId, SessionState.JUDGING);
       this.wsConnection.updateSessionState(sessionId, SessionState.JUDGING);
 
-      const judgingMessage =
-        "全ての弁論が終了したのじゃ。魔法の天秤で最終的な判定を行うぞい。";
+      const judgingMessage = "全ての弁論が終了したのじゃ。最終判定を行うぞい。";
 
       await this.aiResponseRepository.create({
         sessionId,
@@ -1310,8 +1315,8 @@ ${turnResults.join("\n")}
   async preloadCommonAudioMessages(): Promise<void> {
     const commonMessages = [
       "魔法の天秤が真実を測る時が来たのじゃ。",
-      "第1回目の弁論を始めるのじゃ。太陽の皿の方、15秒で話してくれい。",
-      "第1回目の弁論を始めるのじゃ。月の皿の方、15秒で話してくれい。",
+      "第1回目の弁論を始めるのじゃ。太陽の皿の方、8秒で話してくれい。",
+      "第1回目の弁論を始めるのじゃ。月の皿の方、8秒で話してくれい。",
       "時間になったのじゃ。ご苦労であった。",
       "この回の弁論は終了じゃ。",
       "魔法の天秤で評価中じゃ。少々待つのじゃ。",

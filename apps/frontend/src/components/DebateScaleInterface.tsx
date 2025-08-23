@@ -1035,7 +1035,7 @@ export default function DebateScaleInterface() {
                             月側
                           </span>
                         </div>
-                        <div className="text-white text-sm font-medium">
+                        <div className="text-white text-[30px] font-bold">
                           {session.positions?.left ||
                             getDebatePositions(session.theme).leftPosition}
                         </div>
@@ -1061,7 +1061,7 @@ export default function DebateScaleInterface() {
                             太陽側
                           </span>
                         </div>
-                        <div className="text-white text-sm font-medium">
+                        <div className="text-white text-[30px] font-bold">
                           {session.positions?.right ||
                             getDebatePositions(session.theme).rightPosition}
                         </div>

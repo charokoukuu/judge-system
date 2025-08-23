@@ -159,7 +159,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             await (0, timer_1.timer)(4000);
             await (0, judge_trigger_1.judgeTrigger)("0");
             await (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.idle);
-            const debateStartMessage = `それでは弁論を開始するのじゃ。まずは太陽の代弁者から、15秒で聞かせてくれい。`;
+            const debateStartMessage = `それでは弁論を開始するのじゃ`;
             await this.aiResponseRepository.create({
                 sessionId,
                 turnIndex: 0,
@@ -206,7 +206,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 throw new Error(`Invalid turn index: ${turnIndex}`);
             }
             const sideText = side === client_1.Side.RIGHT ? "太陽の皿" : "月の皿";
-            const message = `${sideText}の方、どうぞ話してくれい。15秒でお聞かせくだされ。`;
+            const message = `${sideText}の方、8秒でお聞かせくだされ。`;
             await this.aiResponseRepository.create({
                 sessionId,
                 turnIndex,
@@ -223,13 +223,15 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 const turnMessage = turnIndex === 3
                     ? "最終弁論じゃ。これまでの議論をまとめて話してくれい。"
                     : `第${turnIndex}回目の弁論を始めるのじゃ。`;
-                await this.generateAndBroadcastAudioSync(sessionId, turnMessage, () => {
-                    this.wsConnection.broadcastToSession(sessionId, "turn:started", {
-                        sessionId,
-                        turnIndex,
-                        message: turnMessage,
+                if (turnIndex !== 1) {
+                    await this.generateAndBroadcastAudioSync(sessionId, turnMessage, () => {
+                        this.wsConnection.broadcastToSession(sessionId, "turn:started", {
+                            sessionId,
+                            turnIndex,
+                            message: turnMessage,
+                        });
                     });
-                });
+                }
             }
             await this.generateAndBroadcastAudioSync(sessionId, message, async () => {
                 await this.sessionRepository.updateState(sessionId, newState);
@@ -252,7 +254,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                 sessionId,
                 turnIndex,
                 side,
-                duration: 15,
+                duration: 8,
             });
             this.logger.log(`Timer started for turn ${turnIndex} after audio completion in session ${sessionId}`);
             this.logger.log(`Started turn ${turnIndex} for ${side} side in session ${sessionId}`);
@@ -268,7 +270,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         this.clearTurnTimer(sessionId);
         const timeoutId = setTimeout(() => {
             this.endTurn(sessionId, turnIndex, side);
-        }, 15000);
+        }, 8000);
         const timer = {
             sessionId,
             turnIndex,
@@ -447,7 +449,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
             await (0, judge_trigger_1.judgeTrigger)("0", { isMute: true });
             await this.sessionRepository.updateState(sessionId, client_1.SessionState.JUDGING);
             this.wsConnection.updateSessionState(sessionId, client_1.SessionState.JUDGING);
-            const judgingMessage = "全ての弁論が終了したのじゃ。魔法の天秤で最終的な判定を行うぞい。";
+            const judgingMessage = "全ての弁論が終了したのじゃ。最終判定を行うぞい。";
             await this.aiResponseRepository.create({
                 sessionId,
                 turnIndex: 3,
@@ -854,8 +856,8 @@ ${turnResults.join("\n")}
     async preloadCommonAudioMessages() {
         const commonMessages = [
             "魔法の天秤が真実を測る時が来たのじゃ。",
-            "第1回目の弁論を始めるのじゃ。太陽の皿の方、15秒で話してくれい。",
-            "第1回目の弁論を始めるのじゃ。月の皿の方、15秒で話してくれい。",
+            "第1回目の弁論を始めるのじゃ。太陽の皿の方、8秒で話してくれい。",
+            "第1回目の弁論を始めるのじゃ。月の皿の方、8秒で話してくれい。",
             "時間になったのじゃ。ご苦労であった。",
             "この回の弁論は終了じゃ。",
             "魔法の天秤で評価中じゃ。少々待つのじゃ。",
