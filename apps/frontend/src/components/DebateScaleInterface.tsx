@@ -893,7 +893,7 @@ export default function DebateScaleInterface() {
                     <div className="space-y-4">
                       <div className="w-16 h-16 mx-auto border-4 border-yellow-300 border-t-transparent rounded-full animate-spin"></div>
                       <p className="text-yellow-300 text-lg font-semibold">
-                        🔮 解析中...
+                        🔮 精霊が囁きを集めています...
                       </p>
                     </div>
                   ) : (
