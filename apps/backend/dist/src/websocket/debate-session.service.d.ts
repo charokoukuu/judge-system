@@ -31,6 +31,10 @@ export declare class DebateSessionService {
     private isDuplicateMessage;
     constructor(wsConnection: WebSocketConnectionService, sessionRepository: SessionRepository, utteranceRepository: UtteranceRepository, turnResultRepository: TurnResultRepository, verdictRepository: VerdictRepository, aiResponseRepository: AIResponseRepository, openaiService: OpenaiService, stylebartService: StylebartService);
     createSession(config: DebateSessionConfig): Promise<string>;
+    private stopAllActiveSessions;
+    private forceStopSession;
+    private clearSessionTimers;
+    private clearPendingAudioPlaybacks;
     startSession(sessionId: string): Promise<void>;
     startTurn(sessionId: string, turnIndex: number, side: Side): Promise<void>;
     private setTurnTimer;

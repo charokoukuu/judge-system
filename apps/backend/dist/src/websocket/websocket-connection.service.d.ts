@@ -32,6 +32,19 @@ export declare class WebSocketConnectionService {
     getClient(clientId: string): ConnectedClient | undefined;
     getSessionParticipantCount(sessionId: string): number;
     getActiveSessions(): string[];
+    terminateAllSessions(reason?: string): void;
+    getSessionDetails(sessionId: string): {
+        sessionId: string;
+        state: SessionState;
+        participantCount: number;
+        clients: Array<{
+            clientId: string;
+            role?: string;
+            side?: Side;
+            joinedAt: Date;
+        }>;
+        createdAt: Date;
+    } | null;
     getConnectedClientCount(): number;
     getSessionStats(sessionId: string): {
         participantCount: number;

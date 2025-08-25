@@ -56,6 +56,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         await (0, judge_trigger_1.judgeTrigger)("0", { isMute: true });
         await (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.idle);
         try {
+            await this.stopAllActiveSessions();
             const session = await this.sessionRepository.create({
                 theme: config.theme,
                 state: client_1.SessionState.IDLE,
@@ -66,6 +67,75 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
         catch (error) {
             this.logger.error(`Failed to create session: ${error.message}`);
             throw error;
+        }
+    }
+    async stopAllActiveSessions() {
+        try {
+            const activeSessions = this.wsConnection.getActiveSessions();
+            if (activeSessions.length === 0) {
+                this.logger.log("No active sessions to stop");
+                return;
+            }
+            this.logger.warn(`Stopping ${activeSessions.length} active session(s) before creating new session`);
+            for (const sessionId of activeSessions) {
+                await this.forceStopSession(sessionId);
+            }
+            this.logger.log("All active sessions have been stopped");
+        }
+        catch (error) {
+            this.logger.error(`Error stopping active sessions: ${error.message}`);
+        }
+    }
+    async forceStopSession(sessionId) {
+        try {
+            this.logger.warn(`Force stopping session: ${sessionId}`);
+            this.clearSessionTimers(sessionId);
+            this.clearPendingAudioPlaybacks(sessionId);
+            try {
+                await this.sessionRepository.updateState(sessionId, client_1.SessionState.FINISHED);
+            }
+            catch (dbError) {
+                this.logger.warn(`Failed to update session state in DB: ${dbError.message}`);
+            }
+            this.wsConnection.broadcastToSession(sessionId, "session:force_stopped", {
+                sessionId,
+                reason: "New session being created",
+                timestamp: new Date().toISOString(),
+            });
+            const sessionRoom = this.wsConnection.getSessionRoom(sessionId);
+            if (sessionRoom) {
+                const clientIds = Array.from(sessionRoom.clients.keys());
+                for (const clientId of clientIds) {
+                    this.wsConnection.leaveSession(clientId, sessionId);
+                }
+            }
+            this.logger.log(`Session ${sessionId} has been force stopped`);
+        }
+        catch (error) {
+            this.logger.error(`Error force stopping session ${sessionId}: ${error.message}`);
+        }
+    }
+    clearSessionTimers(sessionId) {
+        const timer = this.activeTurnTimers.get(sessionId);
+        if (timer) {
+            clearTimeout(timer.timeoutId);
+            this.activeTurnTimers.delete(sessionId);
+            this.logger.log(`Cleared timer for session ${sessionId}`);
+        }
+    }
+    clearPendingAudioPlaybacks(sessionId) {
+        const keysToDelete = [];
+        for (const [key, playback] of this.pendingAudioPlaybacks.entries()) {
+            if (playback.sessionId === sessionId) {
+                clearTimeout(playback.timeout);
+                keysToDelete.push(key);
+            }
+        }
+        keysToDelete.forEach((key) => {
+            this.pendingAudioPlaybacks.delete(key);
+        });
+        if (keysToDelete.length > 0) {
+            this.logger.log(`Cleared ${keysToDelete.length} pending audio playbacks for session ${sessionId}`);
         }
     }
     async startSession(sessionId) {
@@ -463,7 +533,7 @@ let DebateSessionService = DebateSessionService_1 = class DebateSessionService {
                     message: judgingMessage,
                 });
             });
-            await (0, timer_1.timer)(2000);
+            await (0, timer_1.timer)(2700);
             await (0, judge_trigger_1.ledTrigger)(judge_trigger_1.State.loading);
             await (0, judge_trigger_1.judgeTrigger)("0", { isMute: true, state: judge_trigger_1.State.loading });
             this.wsConnection.broadcastToSession(sessionId, "loading:start", {

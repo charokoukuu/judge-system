@@ -21,7 +21,7 @@ const judgeTrigger = async (message, options) => {
         if (!isMute) {
             (0, audioPlay_1.playLocalAudio)(audioPlay_1.playMode.GEAR);
         }
-    }, 1000);
+    }, 700);
     axios_1.default
         .post("http://localhost:9000/send/cybergear", {
         message: `${message},${state}`,

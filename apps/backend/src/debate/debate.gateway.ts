@@ -84,7 +84,7 @@ export class DebateGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.log(`Received session:create from ${client.id}`);
       this.logger.log(`Payload: ${JSON.stringify(payload)}`);
 
-      // セッションを作成
+      // セッションを作成（既存セッションがあれば自動的に停止される）
       const sessionId = await this.debateSession.createSession({
         theme: payload.theme,
         maxTurns: payload.maxTurns || 3,

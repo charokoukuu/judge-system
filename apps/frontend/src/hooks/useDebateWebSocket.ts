@@ -331,6 +331,28 @@ export const useDebateWebSocket = () => {
       setIsLoading(false);
     });
 
+    // セッション強制停止
+    socket.on("session:force_stopped", (data: any) => {
+      console.warn("Session force stopped:", data);
+      addMessage(`セッションが強制停止されました: ${data.reason}`, "system");
+
+      // セッション状態をクリア
+      setSession(null);
+      setIsLoading(false);
+      setIsJudging(false);
+      setJudgingMessage("");
+      setVerdict(null);
+      setTurnResults({});
+
+      // 録音も停止
+      if (recordingStopEvent) {
+        setRecordingStopEvent({
+          reason: "turn_ended",
+          timestamp: Date.now(),
+        });
+      }
+    });
+
     // セッション状態更新
     socket.on("session:state_changed", (data: any) => {
       console.log("Session state changed:", data);

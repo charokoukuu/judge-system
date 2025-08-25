@@ -291,6 +291,69 @@ export class WebSocketConnectionService {
   }
 
   /**
+   * 全てのセッションを強制終了
+   */
+  terminateAllSessions(reason = "Server shutdown"): void {
+    this.logger.warn(`Terminating all sessions: ${reason}`);
+
+    this.sessionRooms.forEach((sessionRoom, sessionId) => {
+      // セッション内の全クライアントに終了通知
+      this.broadcastToSession(sessionId, "session:terminated", {
+        sessionId,
+        reason,
+        timestamp: new Date().toISOString(),
+      });
+
+      // 全クライアントをセッションから退出
+      const clientIds = Array.from(sessionRoom.clients.keys());
+      clientIds.forEach((clientId) => {
+        this.leaveSession(clientId, sessionId);
+      });
+    });
+
+    this.sessionRooms.clear();
+    this.logger.log("All sessions have been terminated");
+  }
+
+  /**
+   * 特定のセッションの詳細情報を取得
+   */
+  getSessionDetails(sessionId: string): {
+    sessionId: string;
+    state: SessionState;
+    participantCount: number;
+    clients: Array<{
+      clientId: string;
+      role?: string;
+      side?: Side;
+      joinedAt: Date;
+    }>;
+    createdAt: Date;
+  } | null {
+    const sessionRoom = this.sessionRooms.get(sessionId);
+    if (!sessionRoom) {
+      return null;
+    }
+
+    const clients = Array.from(sessionRoom.clients.entries()).map(
+      ([clientId, client]) => ({
+        clientId,
+        role: client.role,
+        side: client.participantSide,
+        joinedAt: client.joinedAt,
+      })
+    );
+
+    return {
+      sessionId,
+      state: sessionRoom.state,
+      participantCount: sessionRoom.clients.size,
+      clients,
+      createdAt: sessionRoom.createdAt,
+    };
+  }
+
+  /**
    * 接続中のクライアント数を取得
    */
   getConnectedClientCount(): number {

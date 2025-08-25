@@ -95,7 +95,11 @@ export class DebateSessionService {
   async createSession(config: DebateSessionConfig): Promise<string> {
     await judgeTrigger("0", { isMute: true });
     await ledTrigger(State.idle);
+
     try {
+      // 既存のアクティブなセッションがある場合は停止
+      await this.stopAllActiveSessions();
+
       const session = await this.sessionRepository.create({
         theme: config.theme,
         state: SessionState.IDLE,
@@ -109,6 +113,121 @@ export class DebateSessionService {
     } catch (error) {
       this.logger.error(`Failed to create session: ${error.message}`);
       throw error;
+    }
+  }
+
+  /**
+   * 全てのアクティブなセッションを停止
+   */
+  private async stopAllActiveSessions(): Promise<void> {
+    try {
+      // WebSocketから全てのアクティブセッションを取得
+      const activeSessions = this.wsConnection.getActiveSessions();
+
+      if (activeSessions.length === 0) {
+        this.logger.log("No active sessions to stop");
+        return;
+      }
+
+      this.logger.warn(
+        `Stopping ${activeSessions.length} active session(s) before creating new session`
+      );
+
+      // 各セッションを順番に停止
+      for (const sessionId of activeSessions) {
+        await this.forceStopSession(sessionId);
+      }
+
+      this.logger.log("All active sessions have been stopped");
+    } catch (error) {
+      this.logger.error(`Error stopping active sessions: ${error.message}`);
+      // エラーが発生しても新しいセッション作成は続行
+    }
+  }
+
+  /**
+   * セッションを強制停止
+   */
+  private async forceStopSession(sessionId: string): Promise<void> {
+    try {
+      this.logger.warn(`Force stopping session: ${sessionId}`);
+
+      // 1. アクティブなタイマーをクリア
+      this.clearSessionTimers(sessionId);
+
+      // 2. 保留中の音声再生をクリア
+      this.clearPendingAudioPlaybacks(sessionId);
+
+      // 3. セッション状態をデータベースで終了状態に更新
+      try {
+        await this.sessionRepository.updateState(
+          sessionId,
+          SessionState.FINISHED
+        );
+      } catch (dbError) {
+        this.logger.warn(
+          `Failed to update session state in DB: ${dbError.message}`
+        );
+        // データベースエラーは無視して続行
+      }
+
+      // 4. WebSocketクライアントに停止通知を送信
+      this.wsConnection.broadcastToSession(sessionId, "session:force_stopped", {
+        sessionId,
+        reason: "New session being created",
+        timestamp: new Date().toISOString(),
+      });
+
+      // 5. セッションルームから全クライアントを退出させる
+      const sessionRoom = this.wsConnection.getSessionRoom(sessionId);
+      if (sessionRoom) {
+        const clientIds = Array.from(sessionRoom.clients.keys());
+        for (const clientId of clientIds) {
+          this.wsConnection.leaveSession(clientId, sessionId);
+        }
+      }
+
+      this.logger.log(`Session ${sessionId} has been force stopped`);
+    } catch (error) {
+      this.logger.error(
+        `Error force stopping session ${sessionId}: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * セッションのタイマーをクリア
+   */
+  private clearSessionTimers(sessionId: string): void {
+    const timer = this.activeTurnTimers.get(sessionId);
+    if (timer) {
+      clearTimeout(timer.timeoutId);
+      this.activeTurnTimers.delete(sessionId);
+      this.logger.log(`Cleared timer for session ${sessionId}`);
+    }
+  }
+
+  /**
+   * セッションの保留中音声再生をクリア
+   */
+  private clearPendingAudioPlaybacks(sessionId: string): void {
+    // 該当セッションの音声再生をすべて削除
+    const keysToDelete: string[] = [];
+    for (const [key, playback] of this.pendingAudioPlaybacks.entries()) {
+      if (playback.sessionId === sessionId) {
+        clearTimeout(playback.timeout);
+        keysToDelete.push(key);
+      }
+    }
+
+    keysToDelete.forEach((key) => {
+      this.pendingAudioPlaybacks.delete(key);
+    });
+
+    if (keysToDelete.length > 0) {
+      this.logger.log(
+        `Cleared ${keysToDelete.length} pending audio playbacks for session ${sessionId}`
+      );
     }
   }
 
@@ -722,7 +841,7 @@ export class DebateSessionService {
           );
         }
       );
-      await timer(2000);
+      await timer(2700);
 
       // ローディングアニメーション開始
       await ledTrigger(State.loading);

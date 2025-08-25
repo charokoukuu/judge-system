@@ -3,30 +3,30 @@
 // -----------------------------
 
 export enum DebateState {
-  IDLE = 'IDLE',
-  CONFIGURING = 'CONFIGURING',
-  RIGHT_SPEAKING = 'RIGHT_SPEAKING',
-  LEFT_SPEAKING = 'LEFT_SPEAKING',
-  TURN_WRAPUP = 'TURN_WRAPUP',
-  FINAL_RIGHT = 'FINAL_RIGHT',
-  FINAL_LEFT = 'FINAL_LEFT',
-  JUDGING = 'JUDGING',
-  VERDICT = 'VERDICT',
+  IDLE = "IDLE",
+  CONFIGURING = "CONFIGURING",
+  RIGHT_SPEAKING = "RIGHT_SPEAKING",
+  LEFT_SPEAKING = "LEFT_SPEAKING",
+  TURN_WRAPUP = "TURN_WRAPUP",
+  FINAL_RIGHT = "FINAL_RIGHT",
+  FINAL_LEFT = "FINAL_LEFT",
+  JUDGING = "JUDGING",
+  VERDICT = "VERDICT",
 }
 
 export enum ParticipantRole {
-  RIGHT = 'Right',
-  LEFT = 'Left',
-  MODERATOR = 'Moderator',
+  RIGHT = "Right",
+  LEFT = "Left",
+  MODERATOR = "Moderator",
 }
 
 export const ScoreCategories = [
-  'logic',
-  'evidence',
-  'rebuttal',
-  'consistency',
-  'clarity',
-  'factuality',
+  "logic",
+  "evidence",
+  "rebuttal",
+  "consistency",
+  "clarity",
+  "factuality",
 ] as const;
 
 export type ScoreCategory = (typeof ScoreCategories)[number];
@@ -54,7 +54,7 @@ export interface Score {
 }
 
 export interface Verdict {
-  winner: ParticipantRole | 'Draw';
+  winner: ParticipantRole | "Draw";
   summary: string;
   feedbackRight: string;
   feedbackLeft: string;
@@ -66,11 +66,11 @@ export interface Verdict {
 
 // --- Client to Server Events ---
 export const C2S_EVENTS = {
-  SESSION_CREATE: 'session:create',
-  SESSION_JOIN: 'session:join',
-  AUDIO_START: 'audio:start',
-  AUDIO_CHUNK: 'audio:chunk',
-  AUDIO_STOP: 'audio:stop',
+  SESSION_CREATE: "session:create",
+  SESSION_JOIN: "session:join",
+  AUDIO_START: "audio:start",
+  AUDIO_CHUNK: "audio:chunk",
+  AUDIO_STOP: "audio:stop",
 } as const;
 
 export interface SessionCreatePayload extends SessionConfig {}
@@ -85,18 +85,23 @@ export interface AudioChunkPayload {
 }
 export interface AudioStopPayload {}
 
-
 // --- Server to Client Events ---
 export const S2C_EVENTS = {
-  SESSION_CREATED: 'session:created',
-  SESSION_UPDATED: 'session:updated',
-  MODERATOR_MESSAGE: 'moderator:message',
-  MODERATOR_AUDIO: 'moderator:audio',
-  TRANSCRIPT_PARTIAL: 'transcript:partial',
-  TRANSCRIPT_FINAL: 'transcript:final',
-  TURN_SCORED: 'turn:scored',
-  VERDICT_ISSUED: 'verdict:issued',
-  ERROR: 'error',
+  SESSION_CREATED: "session:created",
+  SESSION_UPDATED: "session:updated",
+  SESSION_FORCE_STOPPED: "session:force_stopped",
+  MODERATOR_MESSAGE: "moderator:message",
+  MODERATOR_AUDIO: "moderator:audio",
+  TRANSCRIPT_PARTIAL: "transcript:partial",
+  TRANSCRIPT_FINAL: "transcript:final",
+  TURN_SCORED: "turn:scored",
+  VERDICT_ISSUED: "verdict:issued",
+  ERROR: "error",
+  // サーバー管理用イベント
+  SERVER_RESTARTING: "server:restarting",
+  ADMIN_SERVER_STATUS_RESPONSE: "admin:server_status_response",
+  ADMIN_RESTART_ACKNOWLEDGED: "admin:restart_acknowledged",
+  ADMIN_RESTART_CONFIG_UPDATED: "admin:restart_config_updated",
 } as const;
 
 export interface SessionCreatedPayload {
@@ -109,6 +114,12 @@ export interface SessionUpdatedPayload {
   currentTurn: number;
   speaker: ParticipantRole;
   remainingTime: number;
+}
+
+export interface SessionForceStoppedPayload {
+  sessionId: string;
+  reason: string;
+  timestamp: string;
 }
 
 export interface ModeratorMessagePayload {

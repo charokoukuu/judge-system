@@ -22,7 +22,7 @@ export const judgeTrigger = async (
     if (!isMute) {
       playLocalAudio(playMode.GEAR);
     }
-  }, 1000);
+  }, 700);
   axios
     .post("http://localhost:9000/send/cybergear", {
       message: `${message},${state}`,

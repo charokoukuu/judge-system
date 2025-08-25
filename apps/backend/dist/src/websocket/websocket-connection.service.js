@@ -170,6 +170,41 @@ let WebSocketConnectionService = WebSocketConnectionService_1 = class WebSocketC
     getActiveSessions() {
         return Array.from(this.sessionRooms.keys());
     }
+    terminateAllSessions(reason = "Server shutdown") {
+        this.logger.warn(`Terminating all sessions: ${reason}`);
+        this.sessionRooms.forEach((sessionRoom, sessionId) => {
+            this.broadcastToSession(sessionId, "session:terminated", {
+                sessionId,
+                reason,
+                timestamp: new Date().toISOString(),
+            });
+            const clientIds = Array.from(sessionRoom.clients.keys());
+            clientIds.forEach((clientId) => {
+                this.leaveSession(clientId, sessionId);
+            });
+        });
+        this.sessionRooms.clear();
+        this.logger.log("All sessions have been terminated");
+    }
+    getSessionDetails(sessionId) {
+        const sessionRoom = this.sessionRooms.get(sessionId);
+        if (!sessionRoom) {
+            return null;
+        }
+        const clients = Array.from(sessionRoom.clients.entries()).map(([clientId, client]) => ({
+            clientId,
+            role: client.role,
+            side: client.participantSide,
+            joinedAt: client.joinedAt,
+        }));
+        return {
+            sessionId,
+            state: sessionRoom.state,
+            participantCount: sessionRoom.clients.size,
+            clients,
+            createdAt: sessionRoom.createdAt,
+        };
+    }
     getConnectedClientCount() {
         return this.connectedClients.size;
     }
